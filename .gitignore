@@ -1,0 +1,12 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+.DS_Store
+.idea/
+.vscode/
+*.nupkg
+*.snupkg

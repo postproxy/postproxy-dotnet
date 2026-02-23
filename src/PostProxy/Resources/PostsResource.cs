@@ -1,0 +1,195 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using PostProxy.Models;
+using PostProxy.Parameters;
+
+namespace PostProxy.Resources;
+
+public class PostsResource
+{
+    private readonly PostProxyHttpClient _client;
+    private readonly string? _defaultProfileGroupId;
+
+    internal PostsResource(PostProxyHttpClient client, string? defaultProfileGroupId)
+    {
+        _client = client;
+        _defaultProfileGroupId = defaultProfileGroupId;
+    }
+
+    public Task<PaginatedResponse<Post>> ListAsync(CancellationToken cancellationToken = default) =>
+        ListAsync(null, cancellationToken);
+
+    public Task<PaginatedResponse<Post>> ListAsync(ListPostsParams? parameters, CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string>();
+        var profileGroupId = parameters?.ProfileGroupId ?? _defaultProfileGroupId;
+
+        if (profileGroupId is not null)
+            query["profile_group_id"] = profileGroupId;
+        if (parameters?.Page is not null)
+            query["page"] = parameters.Page.Value.ToString();
+        if (parameters?.PerPage is not null)
+            query["per_page"] = parameters.PerPage.Value.ToString();
+        if (parameters?.Status is not null)
+            query["status"] = JsonSerializer.Serialize(parameters.Status.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+        if (parameters?.Platforms is { Count: > 0 })
+            query["platforms"] = string.Join(",", parameters.Platforms.Select(p =>
+                JsonSerializer.Serialize(p, PostProxyHttpClient.JsonOptions).Trim('"')));
+        if (parameters?.ScheduledAfter is not null)
+            query["scheduled_at"] = parameters.ScheduledAfter.Value.ToString("O");
+
+        return _client.GetAsync<PaginatedResponse<Post>>("/api/posts", query, cancellationToken);
+    }
+
+    public Task<Post> GetAsync(string id, CancellationToken cancellationToken = default) =>
+        GetAsync(id, null, cancellationToken);
+
+    public Task<Post> GetAsync(string id, string? profileGroupId, CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string>();
+        var pgId = profileGroupId ?? _defaultProfileGroupId;
+        if (pgId is not null)
+            query["profile_group_id"] = pgId;
+
+        return _client.GetAsync<Post>($"/api/posts/{Uri.EscapeDataString(id)}", query, cancellationToken);
+    }
+
+    public Task<Post> CreateAsync(CreatePostParams parameters, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        if (string.IsNullOrWhiteSpace(parameters.Body))
+            throw new ArgumentException("Body is required.", nameof(parameters));
+        if (parameters.Profiles is not { Count: > 0 })
+            throw new ArgumentException("At least one profile is required.", nameof(parameters));
+
+        var profileGroupId = parameters.ProfileGroupId ?? _defaultProfileGroupId;
+
+        if (parameters.MediaFiles is { Count: > 0 })
+        {
+            return CreateMultipartAsync(parameters, profileGroupId, cancellationToken);
+        }
+
+        var body = new CreatePostBody
+        {
+            Post = new PostBody
+            {
+                Body = parameters.Body,
+                ScheduledAt = parameters.ScheduledAt?.ToString("O"),
+                Draft = parameters.Draft,
+            },
+            Profiles = parameters.Profiles,
+            Media = parameters.Media,
+            Platforms = parameters.Platforms,
+            ProfileGroupId = profileGroupId,
+        };
+
+        return _client.PostAsync<Post>("/api/posts", body, cancellationToken: cancellationToken);
+    }
+
+    private Task<Post> CreateMultipartAsync(CreatePostParams parameters, string? profileGroupId, CancellationToken cancellationToken)
+    {
+        var fields = new Dictionary<string, string>
+        {
+            ["post[body]"] = parameters.Body,
+        };
+
+        if (parameters.ScheduledAt is not null)
+            fields["post[scheduled_at]"] = parameters.ScheduledAt.Value.ToString("O");
+        if (parameters.Draft is not null)
+            fields["post[draft]"] = parameters.Draft.Value.ToString().ToLowerInvariant();
+        if (profileGroupId is not null)
+            fields["profile_group_id"] = profileGroupId;
+
+        foreach (var profile in parameters.Profiles)
+        {
+            fields[$"profiles[]"] = profile;
+        }
+
+        AddPlatformFields(fields, parameters.Platforms);
+
+        return _client.PostMultipartAsync<Post>(
+            "/api/posts",
+            null,
+            fields,
+            parameters.MediaFiles!,
+            cancellationToken);
+    }
+
+    private static void AddPlatformFields(Dictionary<string, string> fields, PlatformParams? platforms)
+    {
+        if (platforms is null) return;
+
+        if (platforms.Facebook?.Format is not null)
+            fields["platforms[facebook][format]"] = JsonSerializer.Serialize(platforms.Facebook.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+        if (platforms.Instagram?.Format is not null)
+            fields["platforms[instagram][format]"] = JsonSerializer.Serialize(platforms.Instagram.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+        if (platforms.TikTok?.Format is not null)
+            fields["platforms[tiktok][format]"] = JsonSerializer.Serialize(platforms.TikTok.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+        if (platforms.LinkedIn?.Format is not null)
+            fields["platforms[linkedin][format]"] = JsonSerializer.Serialize(platforms.LinkedIn.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+        if (platforms.YouTube?.Format is not null)
+            fields["platforms[youtube][format]"] = JsonSerializer.Serialize(platforms.YouTube.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+        if (platforms.Twitter?.Format is not null)
+            fields["platforms[twitter][format]"] = JsonSerializer.Serialize(platforms.Twitter.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+        if (platforms.Threads?.Format is not null)
+            fields["platforms[threads][format]"] = JsonSerializer.Serialize(platforms.Threads.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+        if (platforms.Pinterest?.Format is not null)
+            fields["platforms[pinterest][format]"] = JsonSerializer.Serialize(platforms.Pinterest.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+    }
+
+    public Task<Post> PublishDraftAsync(string id, CancellationToken cancellationToken = default) =>
+        PublishDraftAsync(id, null, cancellationToken);
+
+    public Task<Post> PublishDraftAsync(string id, string? profileGroupId, CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string>();
+        var pgId = profileGroupId ?? _defaultProfileGroupId;
+        if (pgId is not null)
+            query["profile_group_id"] = pgId;
+
+        return _client.PostAsync<Post>($"/api/posts/{Uri.EscapeDataString(id)}/publish", queryParams: query, cancellationToken: cancellationToken);
+    }
+
+    public Task<DeleteResponse> DeleteAsync(string id, CancellationToken cancellationToken = default) =>
+        DeleteAsync(id, null, cancellationToken);
+
+    public Task<DeleteResponse> DeleteAsync(string id, string? profileGroupId, CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string>();
+        var pgId = profileGroupId ?? _defaultProfileGroupId;
+        if (pgId is not null)
+            query["profile_group_id"] = pgId;
+
+        return _client.DeleteAsync<DeleteResponse>($"/api/posts/{Uri.EscapeDataString(id)}", query, cancellationToken);
+    }
+
+    private record CreatePostBody
+    {
+        [JsonPropertyName("post")]
+        public required PostBody Post { get; init; }
+
+        [JsonPropertyName("profiles")]
+        public required IReadOnlyList<string> Profiles { get; init; }
+
+        [JsonPropertyName("media")]
+        public IReadOnlyList<string>? Media { get; init; }
+
+        [JsonPropertyName("platforms")]
+        public PlatformParams? Platforms { get; init; }
+
+        [JsonPropertyName("profile_group_id")]
+        public string? ProfileGroupId { get; init; }
+    }
+
+    private record PostBody
+    {
+        [JsonPropertyName("body")]
+        public required string Body { get; init; }
+
+        [JsonPropertyName("scheduled_at")]
+        public string? ScheduledAt { get; init; }
+
+        [JsonPropertyName("draft")]
+        public bool? Draft { get; init; }
+    }
+}
