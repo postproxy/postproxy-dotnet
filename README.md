@@ -160,6 +160,32 @@ var post = await client.Posts.PublishDraftAsync("post-id");
 // Delete a post
 var result = await client.Posts.DeleteAsync("post-id");
 Console.WriteLine(result.Deleted); // true
+
+// Get post stats
+var stats = await client.Posts.StatsAsync(new PostStatsParams
+{
+    PostIds = ["post-id-1", "post-id-2"],
+});
+
+// Filter by profiles/networks and time range
+var stats = await client.Posts.StatsAsync(new PostStatsParams
+{
+    PostIds = ["post-id-1"],
+    Profiles = ["instagram", "twitter"],
+    From = DateTimeOffset.UtcNow.AddDays(-7),
+    To = DateTimeOffset.UtcNow,
+});
+
+// Access stats data
+foreach (var (postId, postStats) in stats.Data)
+{
+    foreach (var platform in postStats.Platforms)
+    {
+        Console.WriteLine($"{platform.Platform}: {platform.Records.Count} snapshots");
+        var latest = platform.Records.Last();
+        Console.WriteLine($"  impressions: {latest.Stats["impressions"]}");
+    }
+}
 ```
 
 ### Profiles
@@ -261,6 +287,10 @@ Key types:
 | `Profile` | Id, Name, Status, Platform, ProfileGroupId, ExpiresAt, PostCount |
 | `ProfileGroup` | Id, Name, ProfilesCount |
 | `PlatformResult` | Platform, Status, Params, Error, AttemptedAt, Insights |
+| `StatsResponse` | Data (dictionary keyed by post ID) |
+| `PostStats` | Platforms |
+| `PlatformStats` | ProfileId, Platform, Records |
+| `StatsRecord` | Stats (dictionary of metric name to value), RecordedAt |
 | `ListResponse<T>` | Data |
 | `PaginatedResponse<T>` | Data, Total, Page, PerPage |
 
@@ -286,6 +316,7 @@ Run examples from the repo root:
 ```bash
 dotnet run --project examples -p:Example=CreatePost
 dotnet run --project examples -p:Example=InitializeConnection
+dotnet run --project examples -p:Example=PostStats
 ```
 
 Replace the API key and profile group ID in the example files before running.
