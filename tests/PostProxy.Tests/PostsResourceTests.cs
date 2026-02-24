@@ -173,4 +173,82 @@ public class PostsResourceTests
 
         Assert.Equal(422, ex.StatusCode);
     }
+
+    [Fact]
+    public async Task StatsAsync_ReturnsStats()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "data": {
+                "abc123": {
+                    "platforms": [
+                        {
+                            "profile_id": "prof_abc",
+                            "platform": "instagram",
+                            "records": [
+                                {
+                                    "stats": { "impressions": 1200, "likes": 85 },
+                                    "recorded_at": "2026-02-20T12:00:00Z"
+                                },
+                                {
+                                    "stats": { "impressions": 1523, "likes": 102 },
+                                    "recorded_at": "2026-02-21T04:00:00Z"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+        """);
+
+        var result = await client.Posts.StatsAsync(new PostStatsParams
+        {
+            PostIds = ["abc123"],
+        });
+
+        Assert.True(result.Data.ContainsKey("abc123"));
+        var postStats = result.Data["abc123"];
+        Assert.Single(postStats.Platforms);
+        Assert.Equal(Platform.Instagram, postStats.Platforms[0].Platform);
+        Assert.Equal("prof_abc", postStats.Platforms[0].ProfileId);
+        Assert.Equal(2, postStats.Platforms[0].Records.Count);
+        Assert.Equal(1200, postStats.Platforms[0].Records[0].Stats["impressions"]);
+        Assert.Equal(85, postStats.Platforms[0].Records[0].Stats["likes"]);
+    }
+
+    [Fact]
+    public async Task StatsAsync_WithFilters_BuildsQueryString()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"data": {}}""");
+
+        await client.Posts.StatsAsync(new PostStatsParams
+        {
+            PostIds = ["abc123", "def456"],
+            Profiles = ["instagram", "twitter"],
+            From = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero),
+            To = new DateTimeOffset(2026, 2, 24, 0, 0, 0, TimeSpan.Zero),
+        });
+
+        var url = handler.Requests[0].Url;
+        Assert.Contains("post_ids=abc123%2Cdef456", url);
+        Assert.Contains("profiles=instagram%2Ctwitter", url);
+        Assert.Contains("from=", url);
+        Assert.Contains("to=", url);
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+    }
+
+    [Fact]
+    public async Task StatsAsync_ThrowsOnEmptyPostIds()
+    {
+        var (client, _) = TestHelpers.CreateMockClient();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            client.Posts.StatsAsync(new PostStatsParams
+            {
+                PostIds = [],
+            }));
+    }
 }

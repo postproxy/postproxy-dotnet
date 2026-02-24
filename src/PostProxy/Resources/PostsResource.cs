@@ -163,6 +163,27 @@ public class PostsResource
         return _client.DeleteAsync<DeleteResponse>($"/api/posts/{Uri.EscapeDataString(id)}", query, cancellationToken);
     }
 
+    public Task<StatsResponse> StatsAsync(PostStatsParams parameters, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        if (parameters.PostIds is not { Count: > 0 })
+            throw new ArgumentException("At least one post ID is required.", nameof(parameters));
+
+        var query = new Dictionary<string, string>
+        {
+            ["post_ids"] = string.Join(",", parameters.PostIds),
+        };
+
+        if (parameters.Profiles is { Count: > 0 })
+            query["profiles"] = string.Join(",", parameters.Profiles);
+        if (parameters.From is not null)
+            query["from"] = parameters.From.Value.ToString("O");
+        if (parameters.To is not null)
+            query["to"] = parameters.To.Value.ToString("O");
+
+        return _client.GetAsync<StatsResponse>("/api/posts/stats", query, cancellationToken);
+    }
+
     private record CreatePostBody
     {
         [JsonPropertyName("post")]
