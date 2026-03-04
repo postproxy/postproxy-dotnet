@@ -154,6 +154,20 @@ var post = await client.Posts.CreateAsync(new CreatePostParams
     ScheduledAt = DateTimeOffset.Parse("2025-12-25T09:00:00Z"),
 });
 
+// Create a thread post
+var post = await client.Posts.CreateAsync(new CreatePostParams
+{
+    Body = "Thread starts here",
+    Profiles = ["profile-id"],
+    Thread =
+    [
+        new ThreadChildInput { Body = "Second post in the thread" },
+        new ThreadChildInput { Body = "Third with media", Media = ["https://example.com/img.jpg"] },
+    ],
+});
+foreach (var child in post.Thread!)
+    Console.WriteLine($"{child.Id}: {child.Body}");
+
 // Publish a draft
 var post = await client.Posts.PublishDraftAsync("post-id");
 
@@ -186,6 +200,54 @@ foreach (var (postId, postStats) in stats.Data)
         Console.WriteLine($"  impressions: {latest.Stats["impressions"]}");
     }
 }
+```
+
+### Webhooks
+
+```csharp
+// List webhooks
+var webhooks = await client.Webhooks.ListAsync();
+
+// Get a webhook
+var webhook = await client.Webhooks.GetAsync("wh-id");
+
+// Create a webhook
+var webhook = await client.Webhooks.CreateAsync(new CreateWebhookParams
+{
+    Url = "https://example.com/webhook",
+    Events = ["post.published", "post.failed"],
+    Description = "My webhook",
+});
+Console.WriteLine(webhook.Secret);
+
+// Update a webhook
+var webhook = await client.Webhooks.UpdateAsync("wh-id", new UpdateWebhookParams
+{
+    Events = ["post.published"],
+    Enabled = false,
+});
+
+// Delete a webhook
+await client.Webhooks.DeleteAsync("wh-id");
+
+// List deliveries
+var deliveries = await client.Webhooks.DeliveriesAsync("wh-id");
+foreach (var d in deliveries.Data)
+    Console.WriteLine($"{d.EventType}: {d.Success}");
+```
+
+#### Signature verification
+
+Verify incoming webhook signatures using HMAC-SHA256:
+
+```csharp
+using PostProxy;
+
+var isValid = WebhookSignature.Verify(
+    payload: requestBody,
+    signatureHeader: request.Headers["X-PostProxy-Signature"],
+    secret: "whsec_..."
+);
 ```
 
 ### Profiles
@@ -283,9 +345,14 @@ Key types:
 
 | Type | Fields |
 |---|---|
-| `Post` | Id, Body, Status, ScheduledAt, CreatedAt, Platforms |
+| `Post` | Id, Body, Status, ScheduledAt, CreatedAt, Media, Thread, Platforms |
 | `Profile` | Id, Name, Status, Platform, ProfileGroupId, ExpiresAt, PostCount |
 | `ProfileGroup` | Id, Name, ProfilesCount |
+| `Media` | Id, Type, Url, Status |
+| `ThreadChild` | Id, Body, Media |
+| `ThreadChildInput` | Body, Media |
+| `Webhook` | Id, Url, Events, Secret, Enabled, Description, CreatedAt |
+| `WebhookDelivery` | Id, EventId, EventType, ResponseStatus, AttemptNumber, Success, AttemptedAt, CreatedAt |
 | `PlatformResult` | Platform, Status, Params, Error, AttemptedAt, Insights |
 | `StatsResponse` | Data (dictionary keyed by post ID) |
 | `PostStats` | Platforms |

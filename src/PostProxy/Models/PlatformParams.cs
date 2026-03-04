@@ -120,6 +120,9 @@ public record YouTubeParams
 
     [JsonPropertyName("cover_url")]
     public string? CoverUrl { get; init; }
+
+    [JsonPropertyName("made_for_kids")]
+    public bool? MadeForKids { get; init; }
 }
 
 public record TwitterParams

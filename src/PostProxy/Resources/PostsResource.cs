@@ -64,7 +64,10 @@ public class PostsResource
 
         var profileGroupId = parameters.ProfileGroupId ?? _defaultProfileGroupId;
 
-        if (parameters.MediaFiles is { Count: > 0 })
+        var hasFileUploads = parameters.MediaFiles is { Count: > 0 }
+            || parameters.Thread?.Any(t => t.MediaFiles is { Count: > 0 }) == true;
+
+        if (hasFileUploads)
         {
             return CreateMultipartAsync(parameters, profileGroupId, cancellationToken);
         }
@@ -80,6 +83,7 @@ public class PostsResource
             Profiles = parameters.Profiles,
             Media = parameters.Media,
             Platforms = parameters.Platforms,
+            Thread = parameters.Thread,
             ProfileGroupId = profileGroupId,
         };
 
@@ -88,53 +92,81 @@ public class PostsResource
 
     private Task<Post> CreateMultipartAsync(CreatePostParams parameters, string? profileGroupId, CancellationToken cancellationToken)
     {
-        var fields = new Dictionary<string, string>
+        var fields = new List<KeyValuePair<string, string>>
         {
-            ["post[body]"] = parameters.Body,
+            new("post[body]", parameters.Body),
         };
 
         if (parameters.ScheduledAt is not null)
-            fields["post[scheduled_at]"] = parameters.ScheduledAt.Value.ToString("O");
+            fields.Add(new("post[scheduled_at]", parameters.ScheduledAt.Value.ToString("O")));
         if (parameters.Draft is not null)
-            fields["post[draft]"] = parameters.Draft.Value.ToString().ToLowerInvariant();
+            fields.Add(new("post[draft]", parameters.Draft.Value.ToString().ToLowerInvariant()));
         if (profileGroupId is not null)
-            fields["profile_group_id"] = profileGroupId;
+            fields.Add(new("profile_group_id", profileGroupId));
 
         foreach (var profile in parameters.Profiles)
-        {
-            fields[$"profiles[]"] = profile;
-        }
+            fields.Add(new("profiles[]", profile));
 
         AddPlatformFields(fields, parameters.Platforms);
+
+        // Collect all file paths: parent media + thread child media
+        var allFiles = new List<(string FieldName, string FilePath)>();
+
+        if (parameters.MediaFiles is { Count: > 0 })
+        {
+            foreach (var filePath in parameters.MediaFiles)
+                allFiles.Add(("media[]", filePath));
+        }
+
+        if (parameters.Thread is { Count: > 0 })
+        {
+            for (var i = 0; i < parameters.Thread.Count; i++)
+            {
+                var child = parameters.Thread[i];
+                fields.Add(new($"thread[{i}][body]", child.Body));
+
+                if (child.Media is { Count: > 0 })
+                {
+                    foreach (var url in child.Media)
+                        fields.Add(new($"thread[{i}][media][]", url));
+                }
+
+                if (child.MediaFiles is { Count: > 0 })
+                {
+                    foreach (var filePath in child.MediaFiles)
+                        allFiles.Add(($"thread[{i}][media][]", filePath));
+                }
+            }
+        }
 
         return _client.PostMultipartAsync<Post>(
             "/api/posts",
             null,
             fields,
-            parameters.MediaFiles!,
+            allFiles,
             cancellationToken);
     }
 
-    private static void AddPlatformFields(Dictionary<string, string> fields, PlatformParams? platforms)
+    private static void AddPlatformFields(List<KeyValuePair<string, string>> fields, PlatformParams? platforms)
     {
         if (platforms is null) return;
 
         if (platforms.Facebook?.Format is not null)
-            fields["platforms[facebook][format]"] = JsonSerializer.Serialize(platforms.Facebook.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+            fields.Add(new("platforms[facebook][format]", JsonSerializer.Serialize(platforms.Facebook.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
         if (platforms.Instagram?.Format is not null)
-            fields["platforms[instagram][format]"] = JsonSerializer.Serialize(platforms.Instagram.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+            fields.Add(new("platforms[instagram][format]", JsonSerializer.Serialize(platforms.Instagram.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
         if (platforms.TikTok?.Format is not null)
-            fields["platforms[tiktok][format]"] = JsonSerializer.Serialize(platforms.TikTok.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+            fields.Add(new("platforms[tiktok][format]", JsonSerializer.Serialize(platforms.TikTok.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
         if (platforms.LinkedIn?.Format is not null)
-            fields["platforms[linkedin][format]"] = JsonSerializer.Serialize(platforms.LinkedIn.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+            fields.Add(new("platforms[linkedin][format]", JsonSerializer.Serialize(platforms.LinkedIn.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
         if (platforms.YouTube?.Format is not null)
-            fields["platforms[youtube][format]"] = JsonSerializer.Serialize(platforms.YouTube.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+            fields.Add(new("platforms[youtube][format]", JsonSerializer.Serialize(platforms.YouTube.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
         if (platforms.Twitter?.Format is not null)
-            fields["platforms[twitter][format]"] = JsonSerializer.Serialize(platforms.Twitter.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+            fields.Add(new("platforms[twitter][format]", JsonSerializer.Serialize(platforms.Twitter.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
         if (platforms.Threads?.Format is not null)
-            fields["platforms[threads][format]"] = JsonSerializer.Serialize(platforms.Threads.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+            fields.Add(new("platforms[threads][format]", JsonSerializer.Serialize(platforms.Threads.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
         if (platforms.Pinterest?.Format is not null)
-            fields["platforms[pinterest][format]"] = JsonSerializer.Serialize(platforms.Pinterest.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"');
+            fields.Add(new("platforms[pinterest][format]", JsonSerializer.Serialize(platforms.Pinterest.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
     }
 
     public Task<Post> PublishDraftAsync(string id, CancellationToken cancellationToken = default) =>
@@ -197,6 +229,9 @@ public class PostsResource
 
         [JsonPropertyName("platforms")]
         public PlatformParams? Platforms { get; init; }
+
+        [JsonPropertyName("thread")]
+        public IReadOnlyList<ThreadChildInput>? Thread { get; init; }
 
         [JsonPropertyName("profile_group_id")]
         public string? ProfileGroupId { get; init; }

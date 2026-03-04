@@ -39,6 +39,16 @@ public class PostProxyHttpClient
         return await HandleResponseAsync<T>(response, cancellationToken);
     }
 
+    internal async Task<T> PatchAsync<T>(string path, object? body = null, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default)
+    {
+        var url = BuildUrl(path, queryParams);
+        using var content = body is not null
+            ? new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
+            : null;
+        using var response = await _httpClient.PatchAsync(url, content, cancellationToken);
+        return await HandleResponseAsync<T>(response, cancellationToken);
+    }
+
     internal async Task<T> DeleteAsync<T>(string path, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default)
     {
         var url = BuildUrl(path, queryParams);
@@ -49,8 +59,8 @@ public class PostProxyHttpClient
     internal async Task<T> PostMultipartAsync<T>(
         string path,
         Dictionary<string, string>? queryParams,
-        Dictionary<string, string> formFields,
-        IEnumerable<string> filePaths,
+        IEnumerable<KeyValuePair<string, string>> formFields,
+        IEnumerable<(string FieldName, string FilePath)> files,
         CancellationToken cancellationToken = default)
     {
         var url = BuildUrl(path, queryParams);
@@ -61,12 +71,12 @@ public class PostProxyHttpClient
             content.Add(new StringContent(value), key);
         }
 
-        foreach (var filePath in filePaths)
+        foreach (var (fieldName, filePath) in files)
         {
             var fileStream = File.OpenRead(filePath);
             var streamContent = new StreamContent(fileStream);
             streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(filePath));
-            content.Add(streamContent, "media[]", Path.GetFileName(filePath));
+            content.Add(streamContent, fieldName, Path.GetFileName(filePath));
         }
 
         using var response = await _httpClient.PostAsync(url, content, cancellationToken);

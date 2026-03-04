@@ -251,4 +251,72 @@ public class PostsResourceTests
                 PostIds = [],
             }));
     }
+
+    [Fact]
+    public async Task CreateAsync_WithThread_SendsThreadInBody()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "id": "post-thread",
+            "body": "Main post",
+            "status": "pending",
+            "thread": [
+                {"id": "t-1", "body": "Reply 1", "media": []},
+                {"id": "t-2", "body": "Reply 2", "media": []}
+            ]
+        }
+        """);
+
+        var post = await client.Posts.CreateAsync(new CreatePostParams
+        {
+            Body = "Main post",
+            Profiles = ["profile-1"],
+            Thread =
+            [
+                new ThreadChildInput { Body = "Reply 1" },
+                new ThreadChildInput { Body = "Reply 2", Media = ["https://example.com/img.jpg"] },
+            ],
+        });
+
+        Assert.Equal("post-thread", post.Id);
+        Assert.NotNull(post.Thread);
+        Assert.Equal(2, post.Thread.Count);
+        Assert.Equal("Reply 1", post.Thread[0].Body);
+
+        var body = handler.Requests[0].Body!;
+        Assert.Contains("\"thread\"", body);
+        Assert.Contains("Reply 1", body);
+        Assert.Contains("https://example.com/img.jpg", body);
+    }
+
+    [Fact]
+    public async Task GetAsync_WithMediaAndThread_Deserializes()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "id": "post-1",
+            "body": "Hello",
+            "status": "media_processing_failed",
+            "media": [
+                {"id": "m-1", "status": "processed", "content_type": "image/jpeg", "url": "https://cdn.example.com/img.jpg"}
+            ],
+            "thread": [
+                {"id": "t-1", "body": "Reply", "media": []}
+            ]
+        }
+        """);
+
+        var post = await client.Posts.GetAsync("post-1");
+
+        Assert.Equal(PostStatus.MediaProcessingFailed, post.Status);
+        Assert.NotNull(post.Media);
+        Assert.Single(post.Media);
+        Assert.Equal("m-1", post.Media[0].Id);
+        Assert.Equal(MediaStatus.Processed, post.Media[0].Status);
+        Assert.NotNull(post.Thread);
+        Assert.Single(post.Thread);
+        Assert.Equal("Reply", post.Thread[0].Body);
+    }
 }
