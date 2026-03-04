@@ -23,6 +23,15 @@ public enum PostStatus
     [JsonStringEnumMemberName("processing")] Processing,
     [JsonStringEnumMemberName("processed")] Processed,
     [JsonStringEnumMemberName("scheduled")] Scheduled,
+    [JsonStringEnumMemberName("media_processing_failed")] MediaProcessingFailed,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<MediaStatus>))]
+public enum MediaStatus
+{
+    [JsonStringEnumMemberName("pending")] Pending,
+    [JsonStringEnumMemberName("processed")] Processed,
+    [JsonStringEnumMemberName("failed")] Failed,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<ProfileStatus>))]

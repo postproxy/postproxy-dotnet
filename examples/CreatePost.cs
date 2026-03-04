@@ -61,6 +61,20 @@ Console.WriteLine($"Scheduled post: {scheduledPost.Id}");
 var published = await client.Posts.PublishDraftAsync(post.Id);
 Console.WriteLine($"Published: {published.Id} ({published.Status})");
 
+// Create a thread post
+var threadPost = await client.Posts.CreateAsync(new CreatePostParams
+{
+    Body = "Here's a thread about PostProxy 🧵",
+    Profiles = [profileId],
+    Thread =
+    [
+        new ThreadChildInput { Body = "First, connect your social accounts." },
+        new ThreadChildInput { Body = "Then, create posts with media!", Media = ["https://example.com/demo.jpg"] },
+        new ThreadChildInput { Body = "Finally, schedule or publish instantly." },
+    ],
+});
+Console.WriteLine($"Thread post: {threadPost.Id} ({threadPost.Thread?.Count} children)");
+
 // List posts with filters
 var postList = await client.Posts.ListAsync(new ListPostsParams
 {

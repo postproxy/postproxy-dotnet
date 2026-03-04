@@ -10,6 +10,7 @@ public sealed class PostProxyClient
     private PostsResource? _posts;
     private ProfilesResource? _profiles;
     private ProfileGroupsResource? _profileGroups;
+    private WebhooksResource? _webhooks;
 
     internal PostProxyClient(PostProxyHttpClient httpClient, string? defaultProfileGroupId)
     {
@@ -20,6 +21,7 @@ public sealed class PostProxyClient
     public PostsResource Posts => _posts ??= new PostsResource(_httpClient, _defaultProfileGroupId);
     public ProfilesResource Profiles => _profiles ??= new ProfilesResource(_httpClient, _defaultProfileGroupId);
     public ProfileGroupsResource ProfileGroups => _profileGroups ??= new ProfileGroupsResource(_httpClient);
+    public WebhooksResource Webhooks => _webhooks ??= new WebhooksResource(_httpClient);
 
     public static PostProxyClientBuilder Builder(string apiKey) => new(apiKey);
 }
