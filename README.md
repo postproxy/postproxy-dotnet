@@ -202,6 +202,60 @@ foreach (var (postId, postStats) in stats.Data)
 }
 ```
 
+### Queues
+
+```csharp
+using PostProxy.Models;
+
+// List all queues
+var queues = await client.Queues.ListAsync();
+
+// Get a queue
+var queue = await client.Queues.GetAsync("queue-id");
+
+// Get next available slot
+var nextSlot = await client.Queues.NextSlotAsync("queue-id");
+Console.WriteLine(nextSlot.NextSlot);
+
+// Create a queue with timeslots
+var queue = await client.Queues.CreateAsync(
+    "Morning Posts",
+    "pg-abc",
+    description: "Weekday morning content",
+    timezone: "America/New_York",
+    jitter: 10,
+    timeslots: new object[]
+    {
+        new Dictionary<string, object> { ["day"] = 1, ["time"] = "09:00" },
+        new Dictionary<string, object> { ["day"] = 2, ["time"] = "09:00" },
+        new Dictionary<string, object> { ["day"] = 3, ["time"] = "09:00" },
+    });
+
+// Update a queue
+var queue = await client.Queues.UpdateAsync("queue-id",
+    jitter: 15,
+    timeslots: new object[]
+    {
+        new Dictionary<string, object> { ["day"] = 6, ["time"] = "10:00" },                    // add new timeslot
+        new Dictionary<string, object> { ["id"] = 1, ["_destroy"] = true },                    // remove existing timeslot
+    });
+
+// Pause/unpause a queue
+await client.Queues.UpdateAsync("queue-id", enabled: false);
+
+// Delete a queue
+var result = await client.Queues.DeleteAsync("queue-id");
+
+// Add a post to a queue
+var post = await client.Posts.CreateAsync(new CreatePostParams
+{
+    Body = "This post will be scheduled by the queue",
+    Profiles = ["profile-id"],
+    QueueId = "queue-id",
+    QueuePriority = "high",
+});
+```
+
 ### Webhooks
 
 ```csharp
@@ -345,7 +399,7 @@ Key types:
 
 | Type | Fields |
 |---|---|
-| `Post` | Id, Body, Status, ScheduledAt, CreatedAt, Media, Thread, Platforms |
+| `Post` | Id, Body, Status, ScheduledAt, CreatedAt, Media, Thread, Platforms, QueueId, QueuePriority |
 | `Profile` | Id, Name, Status, Platform, ProfileGroupId, ExpiresAt, PostCount |
 | `ProfileGroup` | Id, Name, ProfilesCount |
 | `Media` | Id, Type, Url, Status |
@@ -358,6 +412,9 @@ Key types:
 | `PostStats` | Platforms |
 | `PlatformStats` | ProfileId, Platform, Records |
 | `StatsRecord` | Stats (dictionary of metric name to value), RecordedAt |
+| `Queue` | Id, Name, Description, Timezone, Enabled, Jitter, ProfileGroupId, Timeslots, PostsCount |
+| `Timeslot` | Id, Day, Time |
+| `NextSlotResponse` | NextSlot |
 | `ListResponse<T>` | Data |
 | `PaginatedResponse<T>` | Data, Total, Page, PerPage |
 
@@ -384,6 +441,7 @@ Run examples from the repo root:
 dotnet run --project examples -p:Example=CreatePost
 dotnet run --project examples -p:Example=InitializeConnection
 dotnet run --project examples -p:Example=PostStats
+dotnet run --project examples -p:Example=ManageQueues
 ```
 
 Replace the API key and profile group ID in the example files before running.
