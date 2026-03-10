@@ -25,5 +25,7 @@ public record CreatePostParams
     public IReadOnlyList<ThreadChildInput>? Thread { get; init; }
     public DateTimeOffset? ScheduledAt { get; init; }
     public bool? Draft { get; init; }
+    public string? QueueId { get; init; }
+    public string? QueuePriority { get; init; }
     public string? ProfileGroupId { get; init; }
 }

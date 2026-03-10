@@ -85,6 +85,8 @@ public class PostsResource
             Platforms = parameters.Platforms,
             Thread = parameters.Thread,
             ProfileGroupId = profileGroupId,
+            QueueId = parameters.QueueId,
+            QueuePriority = parameters.QueuePriority,
         };
 
         return _client.PostAsync<Post>("/api/posts", body, cancellationToken: cancellationToken);
@@ -235,6 +237,12 @@ public class PostsResource
 
         [JsonPropertyName("profile_group_id")]
         public string? ProfileGroupId { get; init; }
+
+        [JsonPropertyName("queue_id")]
+        public string? QueueId { get; init; }
+
+        [JsonPropertyName("queue_priority")]
+        public string? QueuePriority { get; init; }
     }
 
     private record PostBody

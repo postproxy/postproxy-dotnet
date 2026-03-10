@@ -60,6 +60,12 @@ public record Post
 
     [JsonPropertyName("thread")]
     public IReadOnlyList<ThreadChild>? Thread { get; init; }
+
+    [JsonPropertyName("queue_id")]
+    public string? QueueId { get; init; }
+
+    [JsonPropertyName("queue_priority")]
+    public string? QueuePriority { get; init; }
 }
 
 public record PlatformResult
