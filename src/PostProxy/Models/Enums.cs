@@ -57,6 +57,7 @@ public enum FacebookFormat
 {
     [JsonStringEnumMemberName("post")] Post,
     [JsonStringEnumMemberName("story")] Story,
+    [JsonStringEnumMemberName("reel")] Reel,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<InstagramFormat>))]

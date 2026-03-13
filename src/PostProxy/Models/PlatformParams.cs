@@ -34,6 +34,9 @@ public record FacebookParams
     [JsonPropertyName("format")]
     public FacebookFormat? Format { get; init; }
 
+    [JsonPropertyName("title")]
+    public string? Title { get; init; }
+
     [JsonPropertyName("first_comment")]
     public string? FirstComment { get; init; }
 
