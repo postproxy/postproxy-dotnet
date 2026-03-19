@@ -168,6 +168,44 @@ var post = await client.Posts.CreateAsync(new CreatePostParams
 foreach (var child in post.Thread!)
     Console.WriteLine($"{child.Id}: {child.Body}");
 
+// Update a post (only drafts or scheduled posts)
+var post = await client.Posts.UpdateAsync("post-id", new UpdatePostParams
+{
+    Body = "Updated content!",
+});
+
+// Update platform params only
+var post = await client.Posts.UpdateAsync("post-id", new UpdatePostParams
+{
+    Platforms = new PlatformParams
+    {
+        YouTube = new YouTubeParams { PrivacyStatus = "unlisted" },
+    },
+});
+
+// Replace profiles and media
+var post = await client.Posts.UpdateAsync("post-id", new UpdatePostParams
+{
+    Profiles = ["twitter", "threads"],
+    Media = ["https://example.com/new-image.jpg"],
+});
+
+// Replace thread children
+var post = await client.Posts.UpdateAsync("post-id", new UpdatePostParams
+{
+    Thread =
+    [
+        new ThreadChildInput { Body = "Updated first reply" },
+        new ThreadChildInput { Body = "Updated second reply", Media = ["https://example.com/img.jpg"] },
+    ],
+});
+
+// Remove all media
+var post = await client.Posts.UpdateAsync("post-id", new UpdatePostParams
+{
+    Media = [],
+});
+
 // Publish a draft
 var post = await client.Posts.PublishDraftAsync("post-id");
 

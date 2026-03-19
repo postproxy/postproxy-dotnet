@@ -83,6 +83,34 @@ public class PostProxyHttpClient
         return await HandleResponseAsync<T>(response, cancellationToken);
     }
 
+    internal async Task<T> PatchMultipartAsync<T>(
+        string path,
+        Dictionary<string, string>? queryParams,
+        IEnumerable<KeyValuePair<string, string>> formFields,
+        IEnumerable<(string FieldName, string FilePath)> files,
+        CancellationToken cancellationToken = default)
+    {
+        var url = BuildUrl(path, queryParams);
+        using var content = new MultipartFormDataContent($"----PostProxy{Guid.NewGuid():N}");
+
+        foreach (var (key, value) in formFields)
+        {
+            content.Add(new StringContent(value), key);
+        }
+
+        foreach (var (fieldName, filePath) in files)
+        {
+            var fileStream = File.OpenRead(filePath);
+            var streamContent = new StreamContent(fileStream);
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(filePath));
+            content.Add(streamContent, fieldName, Path.GetFileName(filePath));
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, url) { Content = content };
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        return await HandleResponseAsync<T>(response, cancellationToken);
+    }
+
     private static string BuildUrl(string path, Dictionary<string, string>? queryParams)
     {
         if (queryParams is null or { Count: 0 })
