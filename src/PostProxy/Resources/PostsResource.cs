@@ -171,6 +171,109 @@ public class PostsResource
             fields.Add(new("platforms[pinterest][format]", JsonSerializer.Serialize(platforms.Pinterest.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
     }
 
+    public Task<Post> UpdateAsync(string id, UpdatePostParams parameters, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        var profileGroupId = parameters.ProfileGroupId ?? _defaultProfileGroupId;
+
+        var hasFileUploads = parameters.MediaFiles is { Count: > 0 }
+            || parameters.Thread?.Any(t => t.MediaFiles is { Count: > 0 }) == true;
+
+        if (hasFileUploads)
+        {
+            return UpdateMultipartAsync(id, parameters, profileGroupId, cancellationToken);
+        }
+
+        var postBody = new Dictionary<string, object?>();
+        if (parameters.Body is not null)
+            postBody["body"] = parameters.Body;
+        if (parameters.ScheduledAt is not null)
+            postBody["scheduled_at"] = parameters.ScheduledAt.Value.ToString("O");
+        if (parameters.Draft is not null)
+            postBody["draft"] = parameters.Draft.Value;
+
+        var body = new Dictionary<string, object?>();
+        if (postBody.Count > 0)
+            body["post"] = postBody;
+        if (parameters.Profiles is not null)
+            body["profiles"] = parameters.Profiles;
+        if (parameters.Media is not null)
+            body["media"] = parameters.Media;
+        if (parameters.Platforms is not null)
+            body["platforms"] = parameters.Platforms;
+        if (parameters.Thread is not null)
+            body["thread"] = parameters.Thread;
+        if (parameters.QueueId is not null)
+            body["queue_id"] = parameters.QueueId;
+        if (parameters.QueuePriority is not null)
+            body["queue_priority"] = parameters.QueuePriority;
+
+        var query = new Dictionary<string, string>();
+        if (profileGroupId is not null)
+            query["profile_group_id"] = profileGroupId;
+
+        return _client.PatchAsync<Post>($"/api/posts/{Uri.EscapeDataString(id)}", body, query, cancellationToken);
+    }
+
+    private Task<Post> UpdateMultipartAsync(string id, UpdatePostParams parameters, string? profileGroupId, CancellationToken cancellationToken)
+    {
+        var fields = new List<KeyValuePair<string, string>>();
+
+        if (parameters.Body is not null)
+            fields.Add(new("post[body]", parameters.Body));
+        if (parameters.ScheduledAt is not null)
+            fields.Add(new("post[scheduled_at]", parameters.ScheduledAt.Value.ToString("O")));
+        if (parameters.Draft is not null)
+            fields.Add(new("post[draft]", parameters.Draft.Value.ToString().ToLowerInvariant()));
+        if (profileGroupId is not null)
+            fields.Add(new("profile_group_id", profileGroupId));
+
+        if (parameters.Profiles is not null)
+        {
+            foreach (var profile in parameters.Profiles)
+                fields.Add(new("profiles[]", profile));
+        }
+
+        AddPlatformFields(fields, parameters.Platforms);
+
+        var allFiles = new List<(string FieldName, string FilePath)>();
+
+        if (parameters.MediaFiles is { Count: > 0 })
+        {
+            foreach (var filePath in parameters.MediaFiles)
+                allFiles.Add(("media[]", filePath));
+        }
+
+        if (parameters.Thread is { Count: > 0 })
+        {
+            for (var i = 0; i < parameters.Thread.Count; i++)
+            {
+                var child = parameters.Thread[i];
+                fields.Add(new($"thread[{i}][body]", child.Body));
+
+                if (child.Media is { Count: > 0 })
+                {
+                    foreach (var url in child.Media)
+                        fields.Add(new($"thread[{i}][media][]", url));
+                }
+
+                if (child.MediaFiles is { Count: > 0 })
+                {
+                    foreach (var filePath in child.MediaFiles)
+                        allFiles.Add(($"thread[{i}][media][]", filePath));
+                }
+            }
+        }
+
+        return _client.PatchMultipartAsync<Post>(
+            $"/api/posts/{Uri.EscapeDataString(id)}",
+            null,
+            fields,
+            allFiles,
+            cancellationToken);
+    }
+
     public Task<Post> PublishDraftAsync(string id, CancellationToken cancellationToken = default) =>
         PublishDraftAsync(id, null, cancellationToken);
 
