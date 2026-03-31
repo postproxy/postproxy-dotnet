@@ -12,6 +12,7 @@ public sealed class PostProxyClient
     private ProfileGroupsResource? _profileGroups;
     private WebhooksResource? _webhooks;
     private QueuesResource? _queues;
+    private CommentsResource? _comments;
 
     internal PostProxyClient(PostProxyHttpClient httpClient, string? defaultProfileGroupId)
     {
@@ -24,6 +25,7 @@ public sealed class PostProxyClient
     public ProfileGroupsResource ProfileGroups => _profileGroups ??= new ProfileGroupsResource(_httpClient);
     public WebhooksResource Webhooks => _webhooks ??= new WebhooksResource(_httpClient);
     public QueuesResource Queues => _queues ??= new QueuesResource(_httpClient);
+    public CommentsResource Comments => _comments ??= new CommentsResource(_httpClient);
 
     public static PostProxyClientBuilder Builder(string apiKey) => new(apiKey);
 }

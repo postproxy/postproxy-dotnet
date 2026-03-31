@@ -342,6 +342,43 @@ var isValid = WebhookSignature.Verify(
 );
 ```
 
+### Comments
+
+```csharp
+// List comments on a post (paginated)
+var comments = await client.Comments.ListAsync("post-id", "profile-id");
+foreach (var comment in comments.Data)
+{
+    Console.WriteLine($"{comment.AuthorUsername}: {comment.Body}");
+    foreach (var reply in comment.Replies ?? [])
+        Console.WriteLine($"  {reply.AuthorUsername}: {reply.Body}");
+}
+
+// List with pagination
+var comments = await client.Comments.ListAsync("post-id", "profile-id", page: 2, perPage: 10);
+
+// Get a single comment
+var comment = await client.Comments.GetAsync("post-id", "comment-id", "profile-id");
+
+// Create a comment
+var comment = await client.Comments.CreateAsync("post-id", "profile-id", "Great post!");
+
+// Reply to a comment
+var reply = await client.Comments.CreateAsync("post-id", "profile-id", "Thanks!", parentId: "comment-id");
+
+// Delete a comment
+var result = await client.Comments.DeleteAsync("post-id", "comment-id", "profile-id");
+Console.WriteLine(result.Accepted); // true
+
+// Hide / unhide a comment
+await client.Comments.HideAsync("post-id", "comment-id", "profile-id");
+await client.Comments.UnhideAsync("post-id", "comment-id", "profile-id");
+
+// Like / unlike a comment
+await client.Comments.LikeAsync("post-id", "comment-id", "profile-id");
+await client.Comments.UnlikeAsync("post-id", "comment-id", "profile-id");
+```
+
 ### Profiles
 
 ```csharp
@@ -454,6 +491,8 @@ Key types:
 | `Timeslot` | Id, Day, Time |
 | `NextSlotResponse` | NextSlot |
 | `ListResponse<T>` | Data |
+| `Comment` | Id, ExternalId, Body, Status, AuthorUsername, AuthorAvatarUrl, AuthorExternalId, ParentExternalId, LikeCount, IsHidden, Permalink, PlatformData, PostedAt, CreatedAt, Replies |
+| `AcceptedResponse` | Accepted |
 | `PaginatedResponse<T>` | Data, Total, Page, PerPage |
 
 ### Platform parameter types
