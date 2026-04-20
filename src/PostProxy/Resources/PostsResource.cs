@@ -103,6 +103,10 @@ public class PostsResource
             fields.Add(new("post[scheduled_at]", parameters.ScheduledAt.Value.ToString("O")));
         if (parameters.Draft is not null)
             fields.Add(new("post[draft]", parameters.Draft.Value.ToString().ToLowerInvariant()));
+        if (parameters.QueueId is not null)
+            fields.Add(new("queue_id", parameters.QueueId));
+        if (parameters.QueuePriority is not null)
+            fields.Add(new("queue_priority", parameters.QueuePriority));
         if (profileGroupId is not null)
             fields.Add(new("profile_group_id", profileGroupId));
 
@@ -226,6 +230,10 @@ public class PostsResource
             fields.Add(new("post[scheduled_at]", parameters.ScheduledAt.Value.ToString("O")));
         if (parameters.Draft is not null)
             fields.Add(new("post[draft]", parameters.Draft.Value.ToString().ToLowerInvariant()));
+        if (parameters.QueueId is not null)
+            fields.Add(new("queue_id", parameters.QueueId));
+        if (parameters.QueuePriority is not null)
+            fields.Add(new("queue_priority", parameters.QueuePriority));
         if (profileGroupId is not null)
             fields.Add(new("profile_group_id", profileGroupId));
 
