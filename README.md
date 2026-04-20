@@ -503,7 +503,7 @@ Key types:
 | `InstagramParams` | Format (`Post`, `Reel`, `Story`), FirstComment, Collaborators, CoverUrl, AudioName, TrialStrategy, ThumbOffset |
 | `TikTokParams` | Format (`Video`, `Image`), PrivacyStatus, PhotoCoverIndex, AutoAddMusic, MadeWithAi, DisableComment, DisableDuet, DisableStitch, BrandContentToggle, BrandOrganicToggle |
 | `LinkedInParams` | Format (`Post`), OrganizationId |
-| `YouTubeParams` | Format (`Post`), Title, PrivacyStatus, CoverUrl |
+| `YouTubeParams` | Format (`Post`), Title, PrivacyStatus, CoverUrl, MadeForKids, Tags, CategoryId, ContainsSyntheticMedia |
 | `PinterestParams` | Format (`Pin`), Title, BoardId, DestinationLink, CoverUrl, ThumbOffset |
 | `ThreadsParams` | Format (`Post`) |
 | `TwitterParams` | Format (`Post`) |
