@@ -213,6 +213,18 @@ var post = await client.Posts.PublishDraftAsync("post-id");
 var result = await client.Posts.DeleteAsync("post-id");
 Console.WriteLine(result.Deleted); // true
 
+// Delete a post and also remove it from social platforms
+var result2 = await client.Posts.DeleteAsync("post-id", deleteOnPlatform: true, profileGroupId: null);
+
+// Delete from platforms only (keeps DB record). Defaults to all platforms.
+var r1 = await client.Posts.DeleteOnPlatformAsync("post-id");
+// Target a single network
+var r2 = await client.Posts.DeleteOnPlatformAsync("post-id", new DeleteOnPlatformParams { Network = "twitter" });
+// Target a specific profile
+var r3 = await client.Posts.DeleteOnPlatformAsync("post-id", new DeleteOnPlatformParams { ProfileId = "prof-abc" });
+// Target a specific post profile (covers entire thread for that profile)
+var r4 = await client.Posts.DeleteOnPlatformAsync("post-id", new DeleteOnPlatformParams { PostProfileId = "pp-abc" });
+
 // Get post stats
 var stats = await client.Posts.StatsAsync(new PostStatsParams
 {

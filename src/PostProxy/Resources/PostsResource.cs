@@ -296,16 +296,46 @@ public class PostsResource
     }
 
     public Task<DeleteResponse> DeleteAsync(string id, CancellationToken cancellationToken = default) =>
-        DeleteAsync(id, null, cancellationToken);
+        DeleteAsync(id, null, null, cancellationToken);
 
-    public Task<DeleteResponse> DeleteAsync(string id, string? profileGroupId, CancellationToken cancellationToken = default)
+    public Task<DeleteResponse> DeleteAsync(string id, string? profileGroupId, CancellationToken cancellationToken = default) =>
+        DeleteAsync(id, null, profileGroupId, cancellationToken);
+
+    public Task<DeleteResponse> DeleteAsync(string id, bool? deleteOnPlatform, string? profileGroupId, CancellationToken cancellationToken = default)
     {
         var query = new Dictionary<string, string>();
         var pgId = profileGroupId ?? _defaultProfileGroupId;
         if (pgId is not null)
             query["profile_group_id"] = pgId;
+        if (deleteOnPlatform is not null)
+            query["delete_on_platform"] = deleteOnPlatform.Value ? "true" : "false";
 
         return _client.DeleteAsync<DeleteResponse>($"/api/posts/{Uri.EscapeDataString(id)}", query, cancellationToken);
+    }
+
+    public Task<DeleteOnPlatformResponse> DeleteOnPlatformAsync(string id, CancellationToken cancellationToken = default) =>
+        DeleteOnPlatformAsync(id, null, cancellationToken);
+
+    public Task<DeleteOnPlatformResponse> DeleteOnPlatformAsync(string id, DeleteOnPlatformParams? parameters, CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string>();
+        var pgId = parameters?.ProfileGroupId ?? _defaultProfileGroupId;
+        if (pgId is not null)
+            query["profile_group_id"] = pgId;
+
+        var body = new Dictionary<string, object?>();
+        if (parameters?.PostProfileId is not null)
+            body["post_profile_id"] = parameters.PostProfileId;
+        if (parameters?.ProfileId is not null)
+            body["profile_id"] = parameters.ProfileId;
+        if (parameters?.Network is not null)
+            body["network"] = parameters.Network;
+
+        return _client.PostAsync<DeleteOnPlatformResponse>(
+            $"/api/posts/{Uri.EscapeDataString(id)}/delete_on_platform",
+            body.Count > 0 ? body : null,
+            query,
+            cancellationToken);
     }
 
     public Task<StatsResponse> StatsAsync(PostStatsParams parameters, CancellationToken cancellationToken = default)
