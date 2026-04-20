@@ -82,11 +82,29 @@ public record PlatformResult
     [JsonPropertyName("error")]
     public string? Error { get; init; }
 
+    [JsonPropertyName("error_details")]
+    public ErrorDetails? ErrorDetails { get; init; }
+
     [JsonPropertyName("attempted_at")]
     public DateTimeOffset? AttemptedAt { get; init; }
 
     [JsonPropertyName("insights")]
     public Insights? Insights { get; init; }
+}
+
+public record ErrorDetails
+{
+    [JsonPropertyName("platform_error_code")]
+    public string? PlatformErrorCode { get; init; }
+
+    [JsonPropertyName("platform_error_subcode")]
+    public string? PlatformErrorSubcode { get; init; }
+
+    [JsonPropertyName("platform_error_message")]
+    public string? PlatformErrorMessage { get; init; }
+
+    [JsonPropertyName("postproxy_note")]
+    public string? PostproxyNote { get; init; }
 }
 
 public record Insights

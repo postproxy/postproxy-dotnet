@@ -29,6 +29,24 @@ public record DeleteResponse
     public bool Deleted { get; init; }
 }
 
+public record DeletingPlatform
+{
+    [JsonPropertyName("post_profile_id")]
+    public required string PostProfileId { get; init; }
+
+    [JsonPropertyName("platform")]
+    public required Platform Platform { get; init; }
+}
+
+public record DeleteOnPlatformResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; init; }
+
+    [JsonPropertyName("deleting")]
+    public IReadOnlyList<DeletingPlatform> Deleting { get; init; } = Array.Empty<DeletingPlatform>();
+}
+
 public record SuccessResponse
 {
     [JsonPropertyName("success")]

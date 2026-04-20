@@ -126,6 +126,15 @@ public record YouTubeParams
 
     [JsonPropertyName("made_for_kids")]
     public bool? MadeForKids { get; init; }
+
+    [JsonPropertyName("tags")]
+    public IReadOnlyList<string>? Tags { get; init; }
+
+    [JsonPropertyName("category_id")]
+    public string? CategoryId { get; init; }
+
+    [JsonPropertyName("contains_synthetic_media")]
+    public bool? ContainsSyntheticMedia { get; init; }
 }
 
 public record TwitterParams

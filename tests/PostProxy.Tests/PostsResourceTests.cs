@@ -146,6 +146,79 @@ public class PostsResourceTests
     }
 
     [Fact]
+    public async Task DeleteAsync_WithDeleteOnPlatform_AddsQueryParam()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"deleted": true}""");
+
+        var result = await client.Posts.DeleteAsync("post-1", true, null);
+
+        Assert.True(result.Deleted);
+        Assert.Contains("delete_on_platform=true", handler.Requests[0].Url);
+    }
+
+    [Fact]
+    public async Task DeleteOnPlatformAsync_AllPlatforms_SendsPost()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "success": true,
+            "deleting": [{"post_profile_id": "pp-1", "platform": "twitter"}]
+        }
+        """);
+
+        var result = await client.Posts.DeleteOnPlatformAsync("post-1");
+
+        Assert.True(result.Success);
+        Assert.Single(result.Deleting);
+        Assert.Equal("pp-1", result.Deleting[0].PostProfileId);
+        Assert.Equal(Platform.Twitter, result.Deleting[0].Platform);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Contains("/api/posts/post-1/delete_on_platform", handler.Requests[0].Url);
+        Assert.Null(handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task DeleteOnPlatformAsync_ByNetwork_SendsBody()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"success": true, "deleting": []}""");
+
+        await client.Posts.DeleteOnPlatformAsync("post-1", new DeleteOnPlatformParams { Network = "twitter" });
+
+        var body = handler.Requests[0].Body!;
+        using var doc = JsonDocument.Parse(body);
+        Assert.Equal("twitter", doc.RootElement.GetProperty("network").GetString());
+    }
+
+    [Fact]
+    public async Task DeleteOnPlatformAsync_ByProfileId_SendsBody()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"success": true, "deleting": []}""");
+
+        await client.Posts.DeleteOnPlatformAsync("post-1", new DeleteOnPlatformParams { ProfileId = "prof-1" });
+
+        var body = handler.Requests[0].Body!;
+        using var doc = JsonDocument.Parse(body);
+        Assert.Equal("prof-1", doc.RootElement.GetProperty("profile_id").GetString());
+    }
+
+    [Fact]
+    public async Task DeleteOnPlatformAsync_ByPostProfileId_SendsBody()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"success": true, "deleting": []}""");
+
+        await client.Posts.DeleteOnPlatformAsync("post-1", new DeleteOnPlatformParams { PostProfileId = "pp-1" });
+
+        var body = handler.Requests[0].Body!;
+        using var doc = JsonDocument.Parse(body);
+        Assert.Equal("pp-1", doc.RootElement.GetProperty("post_profile_id").GetString());
+    }
+
+    [Fact]
     public async Task GetAsync_ThrowsNotFoundException()
     {
         var (client, handler) = TestHelpers.CreateMockClient();
