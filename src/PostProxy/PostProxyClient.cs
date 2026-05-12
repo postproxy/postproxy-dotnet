@@ -68,6 +68,12 @@ public class PostProxyClientBuilder
         httpClient.BaseAddress ??= new Uri(_baseUrl);
         httpClient.DefaultRequestHeaders.Authorization ??=
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
+        if (!httpClient.DefaultRequestHeaders.UserAgent.Any())
+        {
+            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
+                $"postproxy-dotnet/{SdkVersion.Version} ({System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription.Replace(' ', '/')})"
+            );
+        }
 
         var client = new PostProxyHttpClient(httpClient);
         return new PostProxyClient(client, _profileGroupId);

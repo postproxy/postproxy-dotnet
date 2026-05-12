@@ -52,6 +52,29 @@ public class ProfilesResource
         return _client.GetAsync<ListResponse<Placement>>($"/api/profiles/{Uri.EscapeDataString(id)}/placements", query, cancellationToken);
     }
 
+    /// <summary>
+    /// Fetch the profile stats timeseries. <paramref name="placementId"/> is
+    /// required for facebook, linkedin, and telegram profiles.
+    /// </summary>
+    public Task<ProfileStatsResponse> GetProfileStatsAsync(
+        string id,
+        string? placementId = null,
+        string? from = null,
+        string? to = null,
+        string? profileGroupId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string>();
+        if (placementId is not null) query["placement_id"] = placementId;
+        if (from is not null) query["from"] = from;
+        if (to is not null) query["to"] = to;
+        var pgId = profileGroupId ?? _defaultProfileGroupId;
+        if (pgId is not null) query["profile_group_id"] = pgId;
+
+        return _client.GetAsync<ProfileStatsResponse>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/stats", query, cancellationToken);
+    }
+
     public Task<SuccessResponse> DeleteAsync(string id, CancellationToken cancellationToken = default) =>
         DeleteAsync(id, null, cancellationToken);
 

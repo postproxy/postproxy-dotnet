@@ -31,7 +31,11 @@ public class ProfileGroupsResource
     public Task<DeleteResponse> DeleteAsync(string id, CancellationToken cancellationToken = default) =>
         _client.DeleteAsync<DeleteResponse>($"/api/profile_groups/{Uri.EscapeDataString(id)}", cancellationToken: cancellationToken);
 
-    public Task<ConnectionResponse> InitializeConnectionAsync(string id, Platform platform, string redirectUrl, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Initialize an OAuth connection. For BlueSky and Telegram use
+    /// <see cref="ConnectBlueskyAsync"/> and <see cref="ConnectTelegramAsync"/>.
+    /// </summary>
+    public Task<ConnectionResponse> InitializeConnectionAsync(string id, Platform platform, string? redirectUrl = null, CancellationToken cancellationToken = default)
     {
         var body = new InitializeConnectionBody
         {
@@ -40,6 +44,35 @@ public class ProfileGroupsResource
         };
 
         return _client.PostAsync<ConnectionResponse>(
+            $"/api/profile_groups/{Uri.EscapeDataString(id)}/initialize_connection",
+            body,
+            cancellationToken: cancellationToken);
+    }
+
+    public Task<BlueskyConnectionResponse> ConnectBlueskyAsync(string id, string identifier, string appPassword, CancellationToken cancellationToken = default)
+    {
+        var body = new BlueskyConnectBody
+        {
+            Identifier = identifier,
+            AppPassword = appPassword,
+        };
+
+        return _client.PostAsync<BlueskyConnectionResponse>(
+            $"/api/profile_groups/{Uri.EscapeDataString(id)}/initialize_connection",
+            body,
+            cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Submit a Telegram bot token. Channels populate asynchronously — poll
+    /// <see cref="ProfilesResource.PlacementsAsync(string, CancellationToken)"/>
+    /// until it returns at least one placement.
+    /// </summary>
+    public Task<TelegramConnectionResponse> ConnectTelegramAsync(string id, string botToken, CancellationToken cancellationToken = default)
+    {
+        var body = new TelegramConnectBody { BotToken = botToken };
+
+        return _client.PostAsync<TelegramConnectionResponse>(
             $"/api/profile_groups/{Uri.EscapeDataString(id)}/initialize_connection",
             body,
             cancellationToken: cancellationToken);
@@ -63,6 +96,27 @@ public class ProfileGroupsResource
         public required Platform Platform { get; init; }
 
         [JsonPropertyName("redirect_url")]
-        public required string RedirectUrl { get; init; }
+        public string? RedirectUrl { get; init; }
+    }
+
+    private record BlueskyConnectBody
+    {
+        [JsonPropertyName("platform")]
+        public Platform Platform { get; init; } = Platform.Bluesky;
+
+        [JsonPropertyName("identifier")]
+        public required string Identifier { get; init; }
+
+        [JsonPropertyName("app_password")]
+        public required string AppPassword { get; init; }
+    }
+
+    private record TelegramConnectBody
+    {
+        [JsonPropertyName("platform")]
+        public Platform Platform { get; init; } = Platform.Telegram;
+
+        [JsonPropertyName("bot_token")]
+        public required string BotToken { get; init; }
     }
 }

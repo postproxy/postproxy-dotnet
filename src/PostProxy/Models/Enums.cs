@@ -13,6 +13,8 @@ public enum Platform
     [JsonStringEnumMemberName("twitter")] Twitter,
     [JsonStringEnumMemberName("threads")] Threads,
     [JsonStringEnumMemberName("pinterest")] Pinterest,
+    [JsonStringEnumMemberName("bluesky")] Bluesky,
+    [JsonStringEnumMemberName("telegram")] Telegram,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<PostStatus>))]
@@ -120,4 +122,39 @@ public enum TikTokPrivacy
     [JsonStringEnumMemberName("MUTUAL_FOLLOW_FRIENDS")] MutualFollowFriends,
     [JsonStringEnumMemberName("FOLLOWER_OF_CREATOR")] FollowerOfCreator,
     [JsonStringEnumMemberName("SELF_ONLY")] SelfOnly,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<BlueskyFormat>))]
+public enum BlueskyFormat
+{
+    [JsonStringEnumMemberName("post")] Post,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<TelegramFormat>))]
+public enum TelegramFormat
+{
+    [JsonStringEnumMemberName("post")] Post,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<TelegramParseMode>))]
+public enum TelegramParseMode
+{
+    [JsonStringEnumMemberName("HTML")] Html,
+    [JsonStringEnumMemberName("MarkdownV2")] MarkdownV2,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<WebhookEventType>))]
+public enum WebhookEventType
+{
+    [JsonStringEnumMemberName("post.processed")] PostProcessed,
+    [JsonStringEnumMemberName("post.imported")] PostImported,
+    [JsonStringEnumMemberName("platform_post.published")] PlatformPostPublished,
+    [JsonStringEnumMemberName("platform_post.failed")] PlatformPostFailed,
+    [JsonStringEnumMemberName("platform_post.failed_waiting_for_retry")] PlatformPostFailedWaitingForRetry,
+    [JsonStringEnumMemberName("platform_post.insights")] PlatformPostInsights,
+    [JsonStringEnumMemberName("profile.connected")] ProfileConnected,
+    [JsonStringEnumMemberName("profile.disconnected")] ProfileDisconnected,
+    [JsonStringEnumMemberName("profile.stats")] ProfileStats,
+    [JsonStringEnumMemberName("media.failed")] MediaFailed,
+    [JsonStringEnumMemberName("comment.created")] CommentCreated,
 }

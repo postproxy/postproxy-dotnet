@@ -354,6 +354,36 @@ var isValid = WebhookSignature.Verify(
 );
 ```
 
+#### Event types and typed payloads
+
+Subscribe to any of these events (or pass `["*"]` for all):
+
+`post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.insights`, `profile.connected`, `profile.disconnected`, `profile.stats`, `media.failed`, `comment.created`.
+
+`WebhookEvents.Parse` validates the envelope; `As*` helpers decode `Data` into a typed payload.
+
+```csharp
+using PostProxy.Models;
+using PostProxy.Webhooks;
+
+var ev = WebhookEvents.Parse(requestBody);
+switch (ev.Type)
+{
+    case WebhookEventType.ProfileStats:
+        var stats = WebhookEvents.AsProfileStats(ev);
+        Console.WriteLine($"{stats.ProfileId}: {stats.Stats["followerCount"]}");
+        break;
+    case WebhookEventType.PlatformPostPublished:
+        var pp = WebhookEvents.AsPlatformPost(ev);
+        Console.WriteLine($"Published: {pp.PlatformId}");
+        break;
+    case WebhookEventType.CommentCreated:
+        var c = WebhookEvents.AsCommentCreated(ev);
+        Console.WriteLine($"{c.AuthorUsername}: {c.Body}");
+        break;
+}
+```
+
 ### Comments
 
 ```csharp
@@ -412,6 +442,21 @@ foreach (var p in placements.Data)
 // Delete a profile
 var result = await client.Profiles.DeleteAsync("profile-id");
 Console.WriteLine(result.Success); // true
+
+// Profile stats timeseries — placement_id required for facebook, linkedin, telegram
+var stats = await client.Profiles.GetProfileStatsAsync(
+    "prof_li_001",
+    placementId: "108520199",
+    from: "2026-04-01T00:00:00Z");
+foreach (var r in stats.Data.Records)
+{
+    Console.WriteLine($"{r.RecordedAt}: {r.Stats["followerCount"]}");
+}
+
+// Bluesky — no placements
+var bsky = await client.Profiles.GetProfileStatsAsync("prof_bsky_001");
+var last = bsky.Data.Records[^1];
+Console.WriteLine(last.Stats["followersCount"]);
 ```
 
 ### Profile Groups
@@ -433,12 +478,30 @@ var group = await client.ProfileGroups.CreateAsync("My New Group");
 var result = await client.ProfileGroups.DeleteAsync("pg-id");
 Console.WriteLine(result.Deleted); // true
 
-// Initialize a social platform connection
+// Initialize a social platform OAuth connection
 var conn = await client.ProfileGroups.InitializeConnectionAsync(
     "pg-id",
     Platform.Instagram,
     "https://yourapp.com/callback");
 Console.WriteLine(conn.Url); // Redirect the user to this URL
+
+// BlueSky — app password (synchronous, no OAuth)
+var bsky = await client.ProfileGroups.ConnectBlueskyAsync(
+    "pg-id", "yourname.bsky.social", "xxxx-xxxx-xxxx-xxxx");
+Console.WriteLine(bsky.Profile.Id);
+
+// Telegram — bring-your-own-bot. Channels populate asynchronously; poll
+// placements until non-empty.
+var tg = await client.ProfileGroups.ConnectTelegramAsync(
+    "pg-id", "123456789:ABCdef-GhIJklMnOpQrStUvWxYz");
+Console.WriteLine(tg.NextStep);
+
+ListResponse<Placement> placements;
+do
+{
+    placements = await client.Profiles.PlacementsAsync(tg.Profile.Id);
+    if (placements.Data.Count == 0) await Task.Delay(3000);
+} while (placements.Data.Count == 0);
 ```
 
 ## Error handling
@@ -519,6 +582,10 @@ Key types:
 | `PinterestParams` | Format (`Pin`), Title, BoardId, DestinationLink, CoverUrl, ThumbOffset |
 | `ThreadsParams` | Format (`Post`) |
 | `TwitterParams` | Format (`Post`) |
+| `BlueskyParams` | Format (`Post`) |
+| `TelegramParams` | Format (`Post`), ChatId (required), ParseMode (`Html`, `MarkdownV2`), DisableLinkPreview, DisableNotification |
+
+Supported platforms: `Facebook`, `Instagram`, `TikTok`, `LinkedIn`, `YouTube`, `Twitter`, `Threads`, `Pinterest`, `Bluesky`, `Telegram`. Telegram requires a `ChatId` per post — list channels with `client.Profiles.PlacementsAsync(profileId)`.
 
 Wrap them in `PlatformParams` when passing to `Posts.CreateAsync()`.
 

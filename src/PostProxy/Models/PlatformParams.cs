@@ -27,6 +27,36 @@ public record PlatformParams
 
     [JsonPropertyName("pinterest")]
     public PinterestParams? Pinterest { get; init; }
+
+    [JsonPropertyName("bluesky")]
+    public BlueskyParams? Bluesky { get; init; }
+
+    [JsonPropertyName("telegram")]
+    public TelegramParams? Telegram { get; init; }
+}
+
+public record BlueskyParams
+{
+    [JsonPropertyName("format")]
+    public BlueskyFormat? Format { get; init; }
+}
+
+public record TelegramParams
+{
+    [JsonPropertyName("format")]
+    public TelegramFormat? Format { get; init; }
+
+    [JsonPropertyName("chat_id")]
+    public required string ChatId { get; init; }
+
+    [JsonPropertyName("parse_mode")]
+    public TelegramParseMode? ParseMode { get; init; }
+
+    [JsonPropertyName("disable_link_preview")]
+    public bool? DisableLinkPreview { get; init; }
+
+    [JsonPropertyName("disable_notification")]
+    public bool? DisableNotification { get; init; }
 }
 
 public record FacebookParams
