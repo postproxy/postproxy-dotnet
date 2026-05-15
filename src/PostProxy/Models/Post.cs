@@ -21,6 +21,24 @@ public record Media
 
     [JsonPropertyName("url")]
     public string? Url { get; init; }
+
+    [JsonPropertyName("platforms")]
+    public IReadOnlyList<MediaPlatformError>? Platforms { get; init; }
+}
+
+public record MediaPlatformError
+{
+    [JsonPropertyName("platform")]
+    public Platform? Platform { get; init; }
+
+    [JsonPropertyName("status")]
+    public PlatformPostStatus? Status { get; init; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; init; }
+
+    [JsonPropertyName("error_details")]
+    public ErrorDetails? ErrorDetails { get; init; }
 }
 
 public record ThreadChild

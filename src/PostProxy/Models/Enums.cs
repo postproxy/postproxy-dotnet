@@ -15,6 +15,7 @@ public enum Platform
     [JsonStringEnumMemberName("pinterest")] Pinterest,
     [JsonStringEnumMemberName("bluesky")] Bluesky,
     [JsonStringEnumMemberName("telegram")] Telegram,
+    [JsonStringEnumMemberName("google_business")] GoogleBusiness,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<PostStatus>))]

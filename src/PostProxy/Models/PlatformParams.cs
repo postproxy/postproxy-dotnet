@@ -33,6 +33,9 @@ public record PlatformParams
 
     [JsonPropertyName("telegram")]
     public TelegramParams? Telegram { get; init; }
+
+    [JsonPropertyName("google_business")]
+    public Dictionary<string, object>? GoogleBusiness { get; init; }
 }
 
 public record BlueskyParams

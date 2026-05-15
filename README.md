@@ -421,6 +421,35 @@ await client.Comments.LikeAsync("post-id", "comment-id", "profile-id");
 await client.Comments.UnlikeAsync("post-id", "comment-id", "profile-id");
 ```
 
+### Profile comments (Google Business reviews)
+
+Profile-level comments expose Google Business reviews and replies. Reviews are user-generated — the SDK lets you list/get them and reply to or delete your own replies. Reviews sync twice daily.
+
+```csharp
+// List reviews for a profile (paginated)
+var reviews = await client.ProfileComments.ListAsync("profile-id");
+foreach (var review in reviews.Data)
+{
+    Console.WriteLine($"{review.AuthorUsername}: {review.Body}");
+    foreach (var reply in review.Replies ?? [])
+        Console.WriteLine($"  reply: {reply.Body}");
+}
+
+// Filter by placement (location)
+var reviews = await client.ProfileComments.ListAsync(
+    "profile-id",
+    placementId: "accounts/123/locations/456");
+
+// Get a single review
+var review = await client.ProfileComments.GetAsync("profile-id", "review-id");
+
+// Reply to a review (parentId is the review id)
+var reply = await client.ProfileComments.CreateAsync("profile-id", "review-id", "Thanks for visiting!");
+
+// Delete your reply
+await client.ProfileComments.DeleteAsync("profile-id", "reply-id");
+```
+
 ### Profiles
 
 ```csharp
@@ -585,7 +614,24 @@ Key types:
 | `BlueskyParams` | Format (`Post`) |
 | `TelegramParams` | Format (`Post`), ChatId (required), ParseMode (`Html`, `MarkdownV2`), DisableLinkPreview, DisableNotification |
 
-Supported platforms: `Facebook`, `Instagram`, `TikTok`, `LinkedIn`, `YouTube`, `Twitter`, `Threads`, `Pinterest`, `Bluesky`, `Telegram`. Telegram requires a `ChatId` per post — list channels with `client.Profiles.PlacementsAsync(profileId)`.
+Supported platforms: `Facebook`, `Instagram`, `TikTok`, `LinkedIn`, `YouTube`, `Twitter`, `Threads`, `Pinterest`, `Bluesky`, `Telegram`, `GoogleBusiness`. Telegram requires a `ChatId` per post — list channels with `client.Profiles.PlacementsAsync(profileId)`.
+
+#### Google Business
+
+Google Business posts use the `GoogleBusiness` property on `PlatformParams`, a `Dictionary<string, object>`. The `location_id` is the location resource path returned by `client.Profiles.PlacementsAsync()`. Supported formats: `standard`, `event`, `offer`. CTA actions: `LEARN_MORE`, `BOOK`, `ORDER`, `SHOP`, `SIGN_UP`, `CALL`. Media is limited to one image (≤5 MB).
+
+```csharp
+var platforms = new PlatformParams
+{
+    GoogleBusiness = new Dictionary<string, object>
+    {
+        ["format"] = "standard",
+        ["location_id"] = "accounts/123/locations/456",
+        ["cta_action_type"] = "LEARN_MORE",
+        ["cta_url"] = "https://example.com",
+    },
+};
+```
 
 Wrap them in `PlatformParams` when passing to `Posts.CreateAsync()`.
 
