@@ -135,6 +135,38 @@ public record CommentCreatedData
     [JsonPropertyName("created_at")] public DateTimeOffset CreatedAt { get; init; }
 }
 
+public record MessageEventData
+{
+    [JsonPropertyName("message")] public required Message Message { get; init; }
+}
+
+public record ReactionEventData
+{
+    [JsonPropertyName("message")] public required Message Message { get; init; }
+    [JsonPropertyName("sender_external_id")] public required string SenderExternalId { get; init; }
+    [JsonPropertyName("action")] public string? Action { get; init; }
+    [JsonPropertyName("reaction")] public string? Reaction { get; init; }
+    [JsonPropertyName("emoji")] public string? Emoji { get; init; }
+    [JsonPropertyName("occurred_at")] public DateTimeOffset? OccurredAt { get; init; }
+}
+
+public record ProfileCommentCreatedData
+{
+    [JsonPropertyName("id")] public required string Id { get; init; }
+    [JsonPropertyName("profile_id")] public required string ProfileId { get; init; }
+    [JsonPropertyName("platform")] public Platform Platform { get; init; }
+    [JsonPropertyName("placement_id")] public string? PlacementId { get; init; }
+    [JsonPropertyName("external_id")] public string? ExternalId { get; init; }
+    [JsonPropertyName("parent_external_id")] public string? ParentExternalId { get; init; }
+    [JsonPropertyName("body")] public string? Body { get; init; }
+    [JsonPropertyName("status")] public string? Status { get; init; }
+    [JsonPropertyName("author_username")] public string? AuthorUsername { get; init; }
+    [JsonPropertyName("author_avatar_url")] public string? AuthorAvatarUrl { get; init; }
+    [JsonPropertyName("platform_data")] public IReadOnlyDictionary<string, JsonElement>? PlatformData { get; init; }
+    [JsonPropertyName("posted_at")] public DateTimeOffset? PostedAt { get; init; }
+    [JsonPropertyName("created_at")] public DateTimeOffset CreatedAt { get; init; }
+}
+
 public static class WebhookEvents
 {
     /// <summary>Parse a raw JSON webhook body and validate the envelope.</summary>
@@ -163,6 +195,9 @@ public static class WebhookEvents
     public static ProfileStatsData AsProfileStats(WebhookEvent ev) => Decode<ProfileStatsData>(ev);
     public static MediaFailedData AsMediaFailed(WebhookEvent ev) => Decode<MediaFailedData>(ev);
     public static CommentCreatedData AsCommentCreated(WebhookEvent ev) => Decode<CommentCreatedData>(ev);
+    public static MessageEventData AsMessageEvent(WebhookEvent ev) => Decode<MessageEventData>(ev);
+    public static ReactionEventData AsReactionEvent(WebhookEvent ev) => Decode<ReactionEventData>(ev);
+    public static ProfileCommentCreatedData AsProfileCommentCreated(WebhookEvent ev) => Decode<ProfileCommentCreatedData>(ev);
 
     private static T Decode<T>(WebhookEvent ev) where T : class
     {

@@ -14,6 +14,8 @@ public sealed class PostProxyClient
     private QueuesResource? _queues;
     private CommentsResource? _comments;
     private ProfileCommentsResource? _profileComments;
+    private ChatsResource? _chats;
+    private MessagesResource? _messages;
 
     internal PostProxyClient(PostProxyHttpClient httpClient, string? defaultProfileGroupId)
     {
@@ -28,6 +30,8 @@ public sealed class PostProxyClient
     public QueuesResource Queues => _queues ??= new QueuesResource(_httpClient);
     public CommentsResource Comments => _comments ??= new CommentsResource(_httpClient);
     public ProfileCommentsResource ProfileComments => _profileComments ??= new ProfileCommentsResource(_httpClient);
+    public ChatsResource Chats => _chats ??= new ChatsResource(_httpClient, _defaultProfileGroupId);
+    public MessagesResource Messages => _messages ??= new MessagesResource(_httpClient, _defaultProfileGroupId);
 
     public static PostProxyClientBuilder Builder(string apiKey) => new(apiKey);
 }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace PostProxy.Models;
@@ -39,6 +40,12 @@ public record Comment
 
     [JsonPropertyName("platform_data")]
     public object? PlatformData { get; init; }
+
+    [JsonPropertyName("metadata")]
+    public IReadOnlyDictionary<string, JsonElement>? Metadata { get; init; }
+
+    [JsonPropertyName("attachments")]
+    public IReadOnlyList<Attachment>? Attachments { get; init; }
 
     [JsonPropertyName("posted_at")]
     public DateTimeOffset? PostedAt { get; init; }

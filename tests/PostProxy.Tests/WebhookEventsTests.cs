@@ -100,6 +100,84 @@ public class WebhookEventsTests
         Assert.Equal("Jane", data.AuthorName);
     }
 
+    private static object MockMessage() => new
+    {
+        id = "msg_111",
+        chat_id = "chat_xyz789",
+        external_id = "mid.abc123",
+        direction = "inbound",
+        body = "Hi there",
+        status = "received",
+        reactions = Array.Empty<object>(),
+        attachments = Array.Empty<object>(),
+        is_unsupported = false,
+        created_at = "2026-05-31T14:02:01.000Z",
+    };
+
+    [Theory]
+    [InlineData("message.received", WebhookEventType.MessageReceived)]
+    [InlineData("message.sent", WebhookEventType.MessageSent)]
+    [InlineData("message.delivered", WebhookEventType.MessageDelivered)]
+    [InlineData("message.read", WebhookEventType.MessageRead)]
+    [InlineData("message.edited", WebhookEventType.MessageEdited)]
+    [InlineData("message.deleted", WebhookEventType.MessageDeleted)]
+    [InlineData("message.failed_waiting_for_retry", WebhookEventType.MessageFailedWaitingForRetry)]
+    [InlineData("message.failed", WebhookEventType.MessageFailed)]
+    public void ParsesMessageEvents(string type, WebhookEventType expected)
+    {
+        var ev = WebhookEvents.Parse(Envelope(type, new { message = MockMessage() }));
+
+        Assert.Equal(expected, ev.Type);
+        var data = WebhookEvents.AsMessageEvent(ev);
+        Assert.Equal("msg_111", data.Message.Id);
+        Assert.Equal(MessageDirection.Inbound, data.Message.Direction);
+    }
+
+    [Fact]
+    public void ParsesReactionReceived()
+    {
+        var ev = WebhookEvents.Parse(Envelope("reaction.received", new
+        {
+            message = MockMessage(),
+            sender_external_id = "psid_123",
+            action = "react",
+            reaction = "love",
+            emoji = "❤️",
+            occurred_at = "2026-05-31T14:04:00.000Z",
+        }));
+
+        Assert.Equal(WebhookEventType.ReactionReceived, ev.Type);
+        var data = WebhookEvents.AsReactionEvent(ev);
+        Assert.Equal("psid_123", data.SenderExternalId);
+        Assert.Equal("react", data.Action);
+        Assert.Equal("love", data.Reaction);
+        Assert.Equal("msg_111", data.Message.Id);
+    }
+
+    [Fact]
+    public void ParsesProfileCommentCreated()
+    {
+        var ev = WebhookEvents.Parse(Envelope("profile_comment.created", new
+        {
+            id = "pc_1",
+            profile_id = "prof_abc123",
+            platform = "google_business",
+            placement_id = "loc_1",
+            external_id = "ext_9",
+            body = "Great service!",
+            status = "published",
+            author_username = "happy_customer",
+            created_at = "2026-05-31T14:02:01.000Z",
+        }));
+
+        Assert.Equal(WebhookEventType.ProfileCommentCreated, ev.Type);
+        var data = WebhookEvents.AsProfileCommentCreated(ev);
+        Assert.Equal("pc_1", data.Id);
+        Assert.Equal("prof_abc123", data.ProfileId);
+        Assert.Equal(Platform.GoogleBusiness, data.Platform);
+        Assert.Equal("Great service!", data.Body);
+    }
+
     [Fact]
     public void RejectsInvalidJson()
     {

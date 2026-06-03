@@ -10,6 +10,8 @@ var client = PostProxyClient.Builder("your-api-key")
 var profiles = await client.Profiles.ListAsync();
 Console.WriteLine($"Profiles: {string.Join(", ", profiles.Data.Select(p => p.Name))}");
 
+var profileId = profiles.Data.First().Id;
+
 
 // Create a post with media URLs
 var postWithMedia = await client.Posts.CreateAsync(new CreatePostParams
@@ -57,8 +59,8 @@ var scheduledPost = await client.Posts.CreateAsync(new CreatePostParams
 });
 Console.WriteLine($"Scheduled post: {scheduledPost.Id}");
 
-// // Publish a draft
-var published = await client.Posts.PublishDraftAsync(post.Id);
+// Publish a draft
+var published = await client.Posts.PublishDraftAsync(postWithMedia.Id);
 Console.WriteLine($"Published: {published.Id} ({published.Status})");
 
 // Create a thread post
@@ -84,5 +86,5 @@ var postList = await client.Posts.ListAsync(new ListPostsParams
 Console.WriteLine($"Posts: {postList.Total} total");
 
 // Delete a post
-var deleted = await client.Posts.DeleteAsync(post.Id);
+var deleted = await client.Posts.DeleteAsync(threadPost.Id);
 Console.WriteLine($"Deleted: {deleted.Deleted}");

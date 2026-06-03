@@ -358,9 +358,9 @@ var isValid = WebhookSignature.Verify(
 
 Subscribe to any of these events (or pass `["*"]` for all):
 
-`post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.insights`, `profile.connected`, `profile.disconnected`, `profile.stats`, `media.failed`, `comment.created`.
+`post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.insights`, `profile.connected`, `profile.disconnected`, `profile.stats`, `media.failed`, `comment.created`, `profile_comment.created`, `message.received`, `message.sent`, `message.delivered`, `message.read`, `message.edited`, `message.deleted`, `message.failed_waiting_for_retry`, `message.failed`, `reaction.received`.
 
-`WebhookEvents.Parse` validates the envelope; `As*` helpers decode `Data` into a typed payload.
+`WebhookEvents.Parse` validates the envelope; `As*` helpers decode `Data` into a typed payload. The eight `message.*` events decode to `MessageEventData` (`AsMessageEvent`), `reaction.received` to `ReactionEventData` (`AsReactionEvent`), and `profile_comment.created` to `ProfileCommentCreatedData` (`AsProfileCommentCreated`).
 
 ```csharp
 using PostProxy.Models;
@@ -380,6 +380,18 @@ switch (ev.Type)
     case WebhookEventType.CommentCreated:
         var c = WebhookEvents.AsCommentCreated(ev);
         Console.WriteLine($"{c.AuthorUsername}: {c.Body}");
+        break;
+    case WebhookEventType.MessageReceived:
+        var m = WebhookEvents.AsMessageEvent(ev);
+        Console.WriteLine($"New message: {m.Message.Body}");
+        break;
+    case WebhookEventType.ReactionReceived:
+        var r = WebhookEvents.AsReactionEvent(ev);
+        Console.WriteLine($"{r.SenderExternalId} {r.Action}: {r.Emoji}");
+        break;
+    case WebhookEventType.ProfileCommentCreated:
+        var pc = WebhookEvents.AsProfileCommentCreated(ev);
+        Console.WriteLine($"Review by {pc.AuthorUsername}: {pc.Body}");
         break;
 }
 ```
@@ -419,6 +431,76 @@ await client.Comments.UnhideAsync("post-id", "comment-id", "profile-id");
 // Like / unlike a comment
 await client.Comments.LikeAsync("post-id", "comment-id", "profile-id");
 await client.Comments.UnlikeAsync("post-id", "comment-id", "profile-id");
+
+// Comments may carry media attachments and author metadata
+foreach (var attachment in comment.Attachments ?? [])
+    Console.WriteLine($"{attachment.Type}: {attachment.Url} ({attachment.Status})");
+if (comment.Metadata is not null)
+    Console.WriteLine($"author signals: {comment.Metadata.Count} fields");
+
+// Privately reply to a comment — returns a direct Message (not a Comment)
+var dm = await client.Comments.PrivateReplyAsync("post-id", "comment-id", "profile-id", "DM-ing you the details!");
+Console.WriteLine($"Sent DM: {dm.Id}");
+```
+
+### Direct Messages
+
+Manage private conversations (Chats and Messages) across Facebook, Instagram, Telegram, and Bluesky.
+
+```csharp
+using PostProxy.Models;
+using PostProxy.Parameters;
+
+// List chats for a profile (paginated)
+var chats = await client.Chats.ListAsync("profile-id", new ListChatsParams { PerPage = 20 });
+foreach (var chat in chats.Data)
+    Console.WriteLine($"{chat.Id}: {chat.ParticipantName ?? chat.ParticipantExternalId}");
+
+// Create (or look up) a chat with a participant
+var newChat = await client.Chats.CreateAsync("profile-id", new CreateChatParams
+{
+    ParticipantExternalId = "igsid_8675309",
+    ParticipantUsername = "jane_doe",
+});
+
+// Get a single chat
+var chat = await client.Chats.GetAsync("chat-id");
+
+// Archive / unarchive a chat (Bluesky)
+await client.Chats.ArchiveAsync("chat-id");
+await client.Chats.UnarchiveAsync("chat-id");
+
+// List messages in a chat (filter by direction/status)
+var messages = await client.Messages.ListAsync("chat-id", new ListMessagesParams
+{
+    Direction = MessageDirection.Inbound,
+});
+foreach (var msg in messages.Data)
+{
+    Console.WriteLine($"[{msg.Direction}] {msg.Body}");
+    foreach (var reaction in msg.Reactions)
+        Console.WriteLine($"  {reaction.Emoji} ({reaction.ReactionType})");
+}
+
+// Send a text message
+var sent = await client.Messages.SendAsync("chat-id", "Yes, we ship worldwide!");
+
+// Send media (URLs and/or local files), with optional tag / reply / reply markup
+await client.Messages.SendAsync("chat-id", new SendMessageParams
+{
+    Body = "Here's the photo.",
+    Media = new[] { "https://cdn.example.com/photo.jpg" },
+    MediaFiles = new[] { "/path/to/photo.png" },
+    Tag = "HUMAN_AGENT",
+});
+
+// Get / edit a message
+var message = await client.Messages.GetAsync("message-id");
+await client.Messages.EditAsync("message-id", new EditMessageParams { Body = "Updated text" });
+
+// React / unreact (defaults to "love" server-side when no reaction given)
+await client.Messages.ReactAsync("message-id", new ReactParams { Reaction = "love", Emoji = "❤️" });
+await client.Messages.UnreactAsync("message-id");
 ```
 
 ### Profile comments (Google Business reviews)

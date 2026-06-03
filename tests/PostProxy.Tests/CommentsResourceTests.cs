@@ -211,4 +211,65 @@ public class CommentsResourceTests
         Assert.True(result.Accepted);
         Assert.Contains("/comments/cmt_abc123/unlike", handler.Requests[0].Url);
     }
+
+    [Fact]
+    public async Task GetAsync_ParsesAttachmentsAndMetadata()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "id": "cmt_abc123",
+            "body": "Check this out",
+            "status": "synced",
+            "author_username": "someuser",
+            "like_count": 0,
+            "is_hidden": false,
+            "metadata": {"is_verified_user": true, "follower_count": 1200},
+            "attachments": [
+                {"id": "att_1", "type": "image", "url": "https://cdn.example.com/a.jpg", "status": "processed", "external_id": "ext_1"}
+            ],
+            "created_at": "2026-03-25T10:01:00Z",
+            "replies": []
+        }
+        """);
+
+        var comment = await client.Comments.GetAsync("post1", "cmt_abc123", "prof1");
+
+        Assert.NotNull(comment.Attachments);
+        Assert.Single(comment.Attachments!);
+        Assert.Equal("att_1", comment.Attachments![0].Id);
+        Assert.Equal("image", comment.Attachments![0].Type);
+        Assert.Equal(MediaStatus.Processed, comment.Attachments![0].Status);
+        Assert.NotNull(comment.Metadata);
+        Assert.True(comment.Metadata!["is_verified_user"].GetBoolean());
+        Assert.Equal(1200, comment.Metadata!["follower_count"].GetInt32());
+    }
+
+    [Fact]
+    public async Task PrivateReplyAsync_ReturnsMessage()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "id": "msg_222",
+            "chat_id": "chat_xyz789",
+            "direction": "outbound",
+            "body": "DM-ing you the details.",
+            "status": "pending",
+            "external_comment_id": "17858893269123456",
+            "created_at": "2026-05-31T15:30:05.000Z"
+        }
+        """);
+
+        var msg = await client.Comments.PrivateReplyAsync("post1", "cmt_abc123", "prof1", "DM-ing you the details.");
+
+        Assert.Equal("msg_222", msg.Id);
+        Assert.Equal("17858893269123456", msg.ExternalCommentId);
+
+        var req = handler.Requests[0];
+        Assert.Equal(HttpMethod.Post, req.Method);
+        Assert.Contains("/api/posts/post1/comments/cmt_abc123/private_reply", req.Url);
+        Assert.Contains("profile_id=prof1", req.Url);
+        Assert.Contains("\"text\":\"DM-ing you the details.\"", req.Body);
+    }
 }

@@ -144,6 +144,23 @@ public enum TelegramParseMode
     [JsonStringEnumMemberName("MarkdownV2")] MarkdownV2,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<MessageDirection>))]
+public enum MessageDirection
+{
+    [JsonStringEnumMemberName("inbound")] Inbound,
+    [JsonStringEnumMemberName("outbound")] Outbound,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<MessageStatus>))]
+public enum MessageStatus
+{
+    [JsonStringEnumMemberName("pending")] Pending,
+    [JsonStringEnumMemberName("published")] Published,
+    [JsonStringEnumMemberName("failed_waiting_for_retry")] FailedWaitingForRetry,
+    [JsonStringEnumMemberName("failed")] Failed,
+    [JsonStringEnumMemberName("received")] Received,
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<WebhookEventType>))]
 public enum WebhookEventType
 {
@@ -158,4 +175,14 @@ public enum WebhookEventType
     [JsonStringEnumMemberName("profile.stats")] ProfileStats,
     [JsonStringEnumMemberName("media.failed")] MediaFailed,
     [JsonStringEnumMemberName("comment.created")] CommentCreated,
+    [JsonStringEnumMemberName("profile_comment.created")] ProfileCommentCreated,
+    [JsonStringEnumMemberName("message.received")] MessageReceived,
+    [JsonStringEnumMemberName("message.sent")] MessageSent,
+    [JsonStringEnumMemberName("message.delivered")] MessageDelivered,
+    [JsonStringEnumMemberName("message.read")] MessageRead,
+    [JsonStringEnumMemberName("message.edited")] MessageEdited,
+    [JsonStringEnumMemberName("message.deleted")] MessageDeleted,
+    [JsonStringEnumMemberName("message.failed_waiting_for_retry")] MessageFailedWaitingForRetry,
+    [JsonStringEnumMemberName("message.failed")] MessageFailed,
+    [JsonStringEnumMemberName("reaction.received")] ReactionReceived,
 }

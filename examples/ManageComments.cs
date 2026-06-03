@@ -13,6 +13,13 @@ Console.WriteLine($"Total comments: {comments.Total}");
 foreach (var comment in comments.Data)
 {
     Console.WriteLine($"  {comment.AuthorUsername}: {comment.Body}");
+    if (comment.Attachments is not null)
+    {
+        foreach (var attachment in comment.Attachments)
+            Console.WriteLine($"    attachment: {attachment.Type} {attachment.Url}");
+    }
+    if (comment.Metadata is not null && comment.Metadata.TryGetValue("follower_count", out var followers))
+        Console.WriteLine($"    author followers: {followers}");
     if (comment.Replies is not null)
     {
         foreach (var reply in comment.Replies)
@@ -43,6 +50,10 @@ Console.WriteLine("Comment liked");
 
 await client.Comments.UnlikeAsync(postId, newComment.Id, profileId);
 Console.WriteLine("Comment unliked");
+
+// Privately reply to a comment (returns a direct Message, not a Comment)
+var privateReply = await client.Comments.PrivateReplyAsync(postId, newComment.Id, profileId, "DM-ing you the details!");
+Console.WriteLine($"Private reply sent as message: {privateReply.Id}");
 
 // Delete
 await client.Comments.DeleteAsync(postId, newComment.Id, profileId);

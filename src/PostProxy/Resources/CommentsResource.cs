@@ -55,6 +55,15 @@ public class CommentsResource
     public Task<AcceptedResponse> UnlikeAsync(string postId, string commentId, string profileId, CancellationToken cancellationToken = default) =>
         CommentActionAsync(postId, commentId, profileId, "unlike", cancellationToken);
 
+    public Task<Message> PrivateReplyAsync(string postId, string commentId, string profileId, string text, CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string> { ["profile_id"] = profileId };
+        var body = new Dictionary<string, object> { ["text"] = text };
+        var path = $"/api/posts/{Uri.EscapeDataString(postId)}/comments/{Uri.EscapeDataString(commentId)}/private_reply";
+
+        return _client.PostAsync<Message>(path, body, query, cancellationToken);
+    }
+
     private Task<AcceptedResponse> CommentActionAsync(string postId, string commentId, string profileId, string action, CancellationToken cancellationToken)
     {
         var query = new Dictionary<string, string> { ["profile_id"] = profileId };
