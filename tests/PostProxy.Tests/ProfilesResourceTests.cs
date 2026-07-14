@@ -64,6 +64,63 @@ public class ProfilesResourceTests
     }
 
     [Fact]
+    public async Task AssignPlacementToGroupAsync_SendsPatchWithBody()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"id": "pl-1", "name": "Feed", "metadata": {}, "profile_group_id": "pg-2"}""");
+
+        var result = await client.Profiles.AssignPlacementToGroupAsync("prof-1", "pl-1", "pg-2");
+
+        Assert.Equal("pg-2", result.ProfileGroupId);
+        Assert.Equal(HttpMethod.Patch, handler.Requests[0].Method);
+        Assert.Contains("/api/profiles/prof-1/assign_placement_to_group", handler.Requests[0].Url);
+        Assert.Contains("\"placement_id\":\"pl-1\"", handler.Requests[0].Body);
+        Assert.Contains("\"target_profile_group_id\":\"pg-2\"", handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task GetIceBreakersAsync_ReturnsIceBreakers()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"ice_breakers": [{"question": "What do you do?", "payload": "services"}]}""");
+
+        var result = await client.Profiles.GetIceBreakersAsync("prof-1");
+
+        Assert.Single(result.IceBreakers);
+        Assert.Equal("What do you do?", result.IceBreakers[0].Question);
+        Assert.Contains("/api/profiles/prof-1/ice_breakers", handler.Requests[0].Url);
+    }
+
+    [Fact]
+    public async Task SetIceBreakersAsync_SendsPostWithBody()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"success": true}""");
+
+        var result = await client.Profiles.SetIceBreakersAsync("prof-1",
+            [new IceBreaker { Question = "What do you do?", Payload = "services" }]);
+
+        Assert.True(result.Success);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Contains("/api/profiles/prof-1/ice_breakers", handler.Requests[0].Url);
+        Assert.Contains("\"question\":\"What do you do?\"", handler.Requests[0].Body);
+        Assert.Contains("\"payload\":\"services\"", handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task DeleteIceBreakersAsync_SendsDelete()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"success": true}""");
+
+        var result = await client.Profiles.DeleteIceBreakersAsync("prof-1");
+
+        Assert.True(result.Success);
+        Assert.Equal(HttpMethod.Delete, handler.Requests[0].Method);
+        Assert.Contains("/api/profiles/prof-1/ice_breakers", handler.Requests[0].Url);
+    }
+
+    [Fact]
     public async Task DeleteAsync_ReturnsSuccessResponse()
     {
         var (client, handler) = TestHelpers.CreateMockClient();

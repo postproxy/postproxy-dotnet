@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.11.0] - 2026-07-14
+
+### Added
+
+- `Profiles.GetIceBreakersAsync`, `Profiles.SetIceBreakersAsync`, and `Profiles.DeleteIceBreakersAsync` for managing Instagram DM ice breakers, with `IceBreaker` and `IceBreakersResponse` models.
+- `Profiles.AssignPlacementToGroupAsync(id, placementId, targetProfileGroupId)` to move a placement (Facebook Page, Telegram channel, GBP location) to another profile group; returns the new `AssignedPlacement` model.
+- `Placement.Metadata` property.
+- Twitter polls: `TwitterFormat.Poll`, and `TwitterParams` gains `PollOptions` (2-4 choices, max 25 chars each) and `PollDurationMinutes` (5-10080).
+
 ## [1.10.0] - 2026-06-03
 
 ### Added

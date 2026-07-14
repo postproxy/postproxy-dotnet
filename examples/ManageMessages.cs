@@ -68,3 +68,14 @@ Console.WriteLine("Chat unarchived");
 var privateReply = await client.Comments.PrivateReplyAsync(
     "your-post-id", "comment-id", profileId, "DM-ing you the details!");
 Console.WriteLine($"Private reply sent as message: {privateReply.Id}");
+
+// Ice breakers (Instagram only): FAQ prompts shown when a user opens a chat
+await client.Profiles.SetIceBreakersAsync(profileId,
+[
+    new IceBreaker { Question = "What services do you offer?", Payload = "services" },
+    new IceBreaker { Question = "What are your hours?", Payload = "hours" },
+]);
+var iceBreakers = await client.Profiles.GetIceBreakersAsync(profileId);
+foreach (var ib in iceBreakers.IceBreakers)
+    Console.WriteLine($"Ice breaker: {ib.Question}");
+// await client.Profiles.DeleteIceBreakersAsync(profileId);

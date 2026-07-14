@@ -14,3 +14,15 @@ var connection = await client.ProfileGroups.InitializeConnectionAsync(
     Platform.Instagram,
     "https://your-app.com/callback");
 Console.WriteLine($"Connection URL: {connection.Url}");
+
+// After connecting, list a profile's placements (Pages, channels, locations)
+var placements = await client.Profiles.PlacementsAsync("profile-id");
+foreach (var p in placements.Data)
+    Console.WriteLine($"Placement: {p.Name} ({p.Id})");
+
+// Move one placement to a different profile group
+if (placements.Data.Count > 0)
+{
+    await client.Profiles.AssignPlacementToGroupAsync(
+        "profile-id", placements.Data[0].Id, "other-group-id");
+}

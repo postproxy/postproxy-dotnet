@@ -75,6 +75,80 @@ public class ProfilesResource
             $"/api/profiles/{Uri.EscapeDataString(id)}/stats", query, cancellationToken);
     }
 
+    /// <summary>
+    /// Moves a placement (e.g. a Facebook Page or Telegram channel) to another
+    /// profile group. <paramref name="placementId"/> is the placement's
+    /// external ID as returned by <see cref="PlacementsAsync(string, CancellationToken)"/>.
+    /// </summary>
+    public Task<AssignedPlacement> AssignPlacementToGroupAsync(
+        string id,
+        string placementId,
+        string targetProfileGroupId,
+        string? profileGroupId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string>();
+        var pgId = profileGroupId ?? _defaultProfileGroupId;
+        if (pgId is not null)
+            query["profile_group_id"] = pgId;
+
+        var body = new Dictionary<string, object?>
+        {
+            ["placement_id"] = placementId,
+            ["target_profile_group_id"] = targetProfileGroupId,
+        };
+
+        return _client.PatchAsync<AssignedPlacement>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/assign_placement_to_group", body, query, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists DM ice breakers. Supported for Instagram profiles only.
+    /// </summary>
+    public Task<IceBreakersResponse> GetIceBreakersAsync(string id, CancellationToken cancellationToken = default) =>
+        GetIceBreakersAsync(id, null, cancellationToken);
+
+    public Task<IceBreakersResponse> GetIceBreakersAsync(string id, string? profileGroupId, CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string>();
+        var pgId = profileGroupId ?? _defaultProfileGroupId;
+        if (pgId is not null)
+            query["profile_group_id"] = pgId;
+
+        return _client.GetAsync<IceBreakersResponse>($"/api/profiles/{Uri.EscapeDataString(id)}/ice_breakers", query, cancellationToken);
+    }
+
+    /// <summary>
+    /// Replaces the DM ice breakers for a profile (1-4 items).
+    /// </summary>
+    public Task<SuccessResponse> SetIceBreakersAsync(string id, IReadOnlyList<IceBreaker> iceBreakers, CancellationToken cancellationToken = default) =>
+        SetIceBreakersAsync(id, iceBreakers, null, cancellationToken);
+
+    public Task<SuccessResponse> SetIceBreakersAsync(string id, IReadOnlyList<IceBreaker> iceBreakers, string? profileGroupId, CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string>();
+        var pgId = profileGroupId ?? _defaultProfileGroupId;
+        if (pgId is not null)
+            query["profile_group_id"] = pgId;
+
+        var body = new Dictionary<string, object?> { ["ice_breakers"] = iceBreakers };
+
+        return _client.PostAsync<SuccessResponse>($"/api/profiles/{Uri.EscapeDataString(id)}/ice_breakers", body, query, cancellationToken);
+    }
+
+    public Task<SuccessResponse> DeleteIceBreakersAsync(string id, CancellationToken cancellationToken = default) =>
+        DeleteIceBreakersAsync(id, null, cancellationToken);
+
+    public Task<SuccessResponse> DeleteIceBreakersAsync(string id, string? profileGroupId, CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string>();
+        var pgId = profileGroupId ?? _defaultProfileGroupId;
+        if (pgId is not null)
+            query["profile_group_id"] = pgId;
+
+        return _client.DeleteAsync<SuccessResponse>($"/api/profiles/{Uri.EscapeDataString(id)}/ice_breakers", query, cancellationToken);
+    }
+
     public Task<SuccessResponse> DeleteAsync(string id, CancellationToken cancellationToken = default) =>
         DeleteAsync(id, null, cancellationToken);
 

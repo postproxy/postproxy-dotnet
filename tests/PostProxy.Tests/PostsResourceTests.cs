@@ -109,6 +109,33 @@ public class PostsResourceTests
     }
 
     [Fact]
+    public async Task CreateAsync_WithTwitterPoll_SendsPollParams()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"id": "post-poll", "body": "Which framework?", "status": "pending"}""");
+
+        await client.Posts.CreateAsync(new CreatePostParams
+        {
+            Body = "Which framework?",
+            Profiles = ["tw-1"],
+            Platforms = new PlatformParams
+            {
+                Twitter = new TwitterParams
+                {
+                    Format = TwitterFormat.Poll,
+                    PollOptions = ["Rails", "Django", "Laravel"],
+                    PollDurationMinutes = 1440,
+                },
+            },
+        });
+
+        var body = handler.Requests[0].Body!;
+        Assert.Contains("\"format\":\"poll\"", body);
+        Assert.Contains("\"poll_options\":[\"Rails\",\"Django\",\"Laravel\"]", body);
+        Assert.Contains("\"poll_duration_minutes\":1440", body);
+    }
+
+    [Fact]
     public async Task CreateAsync_ThrowsOnEmptyBody()
     {
         var (client, _) = TestHelpers.CreateMockClient();

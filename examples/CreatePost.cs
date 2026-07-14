@@ -50,6 +50,23 @@ var postWithParams = await client.Posts.CreateAsync(new CreatePostParams
 });
 Console.WriteLine($"Post with platform params: {postWithParams.Id}");
 
+// Twitter poll: 2-4 options (max 25 chars each), 5-10080 minutes
+var pollPost = await client.Posts.CreateAsync(new CreatePostParams
+{
+    Body = "Which framework?",
+    Profiles = ["twitter"],
+    Platforms = new PlatformParams
+    {
+        Twitter = new TwitterParams
+        {
+            Format = TwitterFormat.Poll,
+            PollOptions = ["Rails", "Django", "Laravel", "Other"],
+            PollDurationMinutes = 1440,
+        },
+    },
+});
+Console.WriteLine($"Poll post: {pollPost.Id}");
+
 // Create a scheduled post
 var scheduledPost = await client.Posts.CreateAsync(new CreatePostParams
 {

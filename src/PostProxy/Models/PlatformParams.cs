@@ -174,6 +174,14 @@ public record TwitterParams
 {
     [JsonPropertyName("format")]
     public TwitterFormat? Format { get; init; }
+
+    /// <summary>Required when <see cref="Format"/> is Poll: 2-4 options, max 25 characters each.</summary>
+    [JsonPropertyName("poll_options")]
+    public IReadOnlyList<string>? PollOptions { get; init; }
+
+    /// <summary>Required when <see cref="Format"/> is Poll: 5 to 10080 minutes (7 days).</summary>
+    [JsonPropertyName("poll_duration_minutes")]
+    public int? PollDurationMinutes { get; init; }
 }
 
 public record ThreadsParams

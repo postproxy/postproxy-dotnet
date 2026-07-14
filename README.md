@@ -550,6 +550,24 @@ var placements = await client.Profiles.PlacementsAsync("profile-id");
 foreach (var p in placements.Data)
     Console.WriteLine($"{p.Id} {p.Name}");
 
+// Move a placement (e.g. a Facebook Page or Telegram channel) to another group
+var placement = await client.Profiles.AssignPlacementToGroupAsync(
+    "profile-id", "placement-external-id", "pg-other");
+Console.WriteLine(placement.ProfileGroupId); // "pg-other"
+
+// Ice breakers (Instagram DMs): FAQ prompts shown when a user opens a chat
+var iceBreakers = await client.Profiles.GetIceBreakersAsync("profile-id");
+foreach (var ib in iceBreakers.IceBreakers)
+    Console.WriteLine(ib.Question);
+
+await client.Profiles.SetIceBreakersAsync("profile-id",
+[
+    new IceBreaker { Question = "What services do you offer?", Payload = "services" },
+    new IceBreaker { Question = "What are your hours?", Payload = "hours" },
+]); // 1-4 items
+
+await client.Profiles.DeleteIceBreakersAsync("profile-id");
+
 // Delete a profile
 var result = await client.Profiles.DeleteAsync("profile-id");
 Console.WriteLine(result.Success); // true
@@ -692,7 +710,7 @@ Key types:
 | `YouTubeParams` | Format (`Post`), Title, PrivacyStatus, CoverUrl, MadeForKids, Tags, CategoryId, ContainsSyntheticMedia |
 | `PinterestParams` | Format (`Pin`), Title, BoardId, DestinationLink, CoverUrl, ThumbOffset |
 | `ThreadsParams` | Format (`Post`) |
-| `TwitterParams` | Format (`Post`) |
+| `TwitterParams` | Format (`Post`, `Poll`), PollOptions (2-4 choices, max 25 chars each; required for `Poll`), PollDurationMinutes (5-10080; required for `Poll`) |
 | `BlueskyParams` | Format (`Post`) |
 | `TelegramParams` | Format (`Post`), ChatId (required), ParseMode (`Html`, `MarkdownV2`), DisableLinkPreview, DisableNotification |
 

@@ -94,6 +94,7 @@ public enum YouTubeFormat
 public enum TwitterFormat
 {
     [JsonStringEnumMemberName("post")] Post,
+    [JsonStringEnumMemberName("poll")] Poll,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<ThreadsFormat>))]
