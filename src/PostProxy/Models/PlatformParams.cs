@@ -99,6 +99,33 @@ public record InstagramParams
 
     [JsonPropertyName("thumb_offset")]
     public int? ThumbOffset { get; init; }
+
+    /// <summary>Instagram accounts to tag. See <see cref="InstagramUserTag"/>.</summary>
+    [JsonPropertyName("user_tags")]
+    public IReadOnlyList<InstagramUserTag>? UserTags { get; init; }
+}
+
+/// <summary>
+/// An Instagram account to tag in a post. Images require <see cref="X"/> and
+/// <see cref="Y"/>; reels and video slides are tagged by username only —
+/// Instagram ignores coordinates there.
+/// </summary>
+public record InstagramUserTag
+{
+    [JsonPropertyName("username")]
+    public required string Username { get; init; }
+
+    /// <summary>Horizontal position, 0.0-1.0 from the left edge. Required for images.</summary>
+    [JsonPropertyName("x")]
+    public double? X { get; init; }
+
+    /// <summary>Vertical position, 0.0-1.0 from the top edge. Required for images.</summary>
+    [JsonPropertyName("y")]
+    public double? Y { get; init; }
+
+    /// <summary>Which media item to tag, 0-based. Defaults to 0.</summary>
+    [JsonPropertyName("media_index")]
+    public int? MediaIndex { get; init; }
 }
 
 public record TikTokParams

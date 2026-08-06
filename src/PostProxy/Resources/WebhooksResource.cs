@@ -17,7 +17,7 @@ public class WebhooksResource
     public Task<Webhook> GetAsync(string id, CancellationToken cancellationToken = default) =>
         _client.GetAsync<Webhook>($"/api/webhooks/{Uri.EscapeDataString(id)}", cancellationToken: cancellationToken);
 
-    public Task<Webhook> CreateAsync(string url, IEnumerable<string> events, string? description = null, CancellationToken cancellationToken = default)
+    public Task<Webhook> CreateAsync(string url, IEnumerable<string> events, string? description = null, string? idempotencyKey = null, CancellationToken cancellationToken = default)
     {
         var body = new Dictionary<string, object>
         {
@@ -27,10 +27,10 @@ public class WebhooksResource
         if (description is not null)
             body["description"] = description;
 
-        return _client.PostAsync<Webhook>("/api/webhooks", body, cancellationToken: cancellationToken);
+        return _client.PostAsync<Webhook>("/api/webhooks", body, cancellationToken: cancellationToken, idempotencyKey: idempotencyKey);
     }
 
-    public Task<Webhook> UpdateAsync(string id, string? url = null, IEnumerable<string>? events = null, bool? enabled = null, string? description = null, CancellationToken cancellationToken = default)
+    public Task<Webhook> UpdateAsync(string id, string? url = null, IEnumerable<string>? events = null, bool? enabled = null, string? description = null, string? idempotencyKey = null, CancellationToken cancellationToken = default)
     {
         var body = new Dictionary<string, object>();
         if (url is not null) body["url"] = url;
@@ -38,11 +38,14 @@ public class WebhooksResource
         if (enabled is not null) body["enabled"] = enabled.Value;
         if (description is not null) body["description"] = description;
 
-        return _client.PatchAsync<Webhook>($"/api/webhooks/{Uri.EscapeDataString(id)}", body, cancellationToken: cancellationToken);
+        return _client.PatchAsync<Webhook>($"/api/webhooks/{Uri.EscapeDataString(id)}", body, cancellationToken: cancellationToken, idempotencyKey: idempotencyKey);
     }
 
     public Task<DeleteResponse> DeleteAsync(string id, CancellationToken cancellationToken = default) =>
-        _client.DeleteAsync<DeleteResponse>($"/api/webhooks/{Uri.EscapeDataString(id)}", cancellationToken: cancellationToken);
+        DeleteAsync(id, null, cancellationToken);
+
+    public Task<DeleteResponse> DeleteAsync(string id, string? idempotencyKey, CancellationToken cancellationToken = default) =>
+        _client.DeleteAsync<DeleteResponse>($"/api/webhooks/{Uri.EscapeDataString(id)}", cancellationToken: cancellationToken, idempotencyKey: idempotencyKey);
 
     public Task<PaginatedResponse<WebhookDelivery>> DeliveriesAsync(string id, int? page = null, int? perPage = null, CancellationToken cancellationToken = default)
     {

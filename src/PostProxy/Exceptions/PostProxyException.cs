@@ -18,6 +18,7 @@ public class PostProxyException : Exception
             400 => new BadRequestException(message, response),
             401 => new AuthenticationException(message, response),
             404 => new NotFoundException(message, response),
+            409 => new ConflictException(message, response),
             422 => new ValidationException(message, response),
             _ => new PostProxyException(message, statusCode, response),
         };
@@ -34,3 +35,11 @@ public class NotFoundException(string message, IReadOnlyDictionary<string, objec
 
 public class ValidationException(string message, IReadOnlyDictionary<string, object>? response = null)
     : PostProxyException(message, 422, response);
+
+/// <summary>
+/// 409. Thrown for a duplicate submission (<c>Response["duplicate_post_id"]</c>),
+/// a backfill that is already running (<c>Response["profile_sync_id"]</c>), or a
+/// request whose <c>Idempotency-Key</c> is still in flight.
+/// </summary>
+public class ConflictException(string message, IReadOnlyDictionary<string, object>? response = null)
+    : PostProxyException(message, 409, response);

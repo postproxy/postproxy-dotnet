@@ -187,3 +187,22 @@ public enum WebhookEventType
     [JsonStringEnumMemberName("message.failed")] MessageFailed,
     [JsonStringEnumMemberName("reaction.received")] ReactionReceived,
 }
+
+/// <summary>What started a post sync run.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PostSyncTrigger>))]
+public enum PostSyncTrigger
+{
+    [JsonStringEnumMemberName("connect")] Connect,
+    [JsonStringEnumMemberName("scheduled")] Scheduled,
+    [JsonStringEnumMemberName("backfill")] Backfill,
+}
+
+/// <summary>The state of a post sync run.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PostSyncStatus>))]
+public enum PostSyncStatus
+{
+    [JsonStringEnumMemberName("pending")] Pending,
+    [JsonStringEnumMemberName("running")] Running,
+    [JsonStringEnumMemberName("completed")] Completed,
+    [JsonStringEnumMemberName("failed")] Failed,
+}

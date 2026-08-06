@@ -272,4 +272,86 @@ public class CommentsResourceTests
         Assert.Contains("profile_id=prof1", req.Url);
         Assert.Contains("\"text\":\"DM-ing you the details.\"", req.Body);
     }
+
+    [Fact]
+    public async Task ListAsync_SendsDateFilters()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"total": 0, "page": 0, "per_page": 20, "data": []}""");
+
+        await client.Comments.ListAsync("post-1", "prof-1", from: "2026-03-25", to: "2026-03-26T12:00:00Z");
+
+        var url = handler.Requests[0].Url;
+        Assert.Contains("from=2026-03-25", url);
+        Assert.Contains("to=2026-03-26T12%3A00%3A00Z", url);
+    }
+
+    [Fact]
+    public async Task ListAllAsync_ReturnsFlatComments()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "total": 2,
+            "page": 0,
+            "per_page": 50,
+            "data": [
+                {
+                    "post_id": "abc123xyz", "profile_id": "prof456", "platform": "instagram",
+                    "id": "cmt_abc123", "body": "Great post!", "parent_external_id": null,
+                    "like_count": 3, "is_hidden": false, "created_at": "2026-03-25T10:01:00Z"
+                },
+                {
+                    "post_id": "abc123xyz", "profile_id": "prof456", "platform": "instagram",
+                    "id": "cmt_def456", "body": "Thanks!", "parent_external_id": "17858893269123456",
+                    "like_count": 1, "is_hidden": false, "created_at": "2026-03-25T10:05:00Z"
+                }
+            ]
+        }
+        """);
+
+        var result = await client.Comments.ListAllAsync(
+            postIds: ["abc123xyz", "def456uvw"],
+            profiles: ["instagram", "prof456"],
+            from: "2026-03-25",
+            perPage: 50);
+
+        Assert.Equal(2, result.Total);
+        Assert.Equal("abc123xyz", result.Data[0].PostId);
+        Assert.Equal("prof456", result.Data[0].ProfileId);
+        Assert.Equal(Platform.Instagram, result.Data[0].Platform);
+        // Flat: the reply is its own entry, linked by parent_external_id.
+        Assert.Equal("17858893269123456", result.Data[1].ParentExternalId);
+
+        var url = handler.Requests[0].Url;
+        Assert.Contains("/api/comments", url);
+        Assert.Contains("post_ids=abc123xyz%2Cdef456uvw", url);
+        Assert.Contains("profiles=instagram%2Cprof456", url);
+        Assert.Contains("per_page=50", url);
+    }
+
+    [Fact]
+    public async Task ListAllAsync_WithoutFilters()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"total": 0, "page": 0, "per_page": 20, "data": []}""");
+
+        await client.Comments.ListAllAsync();
+
+        var url = handler.Requests[0].Url;
+        Assert.Contains("/api/comments", url);
+        Assert.DoesNotContain("profiles=", url);
+        Assert.DoesNotContain("post_ids=", url);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SendsIdempotencyKey()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"id": "cmt_abc123", "body": "Nice", "created_at": "2026-03-25T10:01:00Z"}""");
+
+        await client.Comments.CreateAsync("post-1", "prof-1", "Nice", idempotencyKey: "key-42");
+
+        Assert.Equal("key-42", handler.Requests[0].Headers["Idempotency-Key"]);
+    }
 }

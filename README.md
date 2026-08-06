@@ -61,6 +61,48 @@ var client = PostProxyClient.Builder("your-api-key")
     .Build();
 ```
 
+#### Idempotency
+
+Every write (`POST`/`PUT`/`PATCH`/`DELETE`) accepts an idempotency key, sent as the
+`Idempotency-Key` header. If the connection drops before you see the response, retry with
+the same key and you get the original response back instead of a second post:
+
+```csharp
+var key = Guid.NewGuid().ToString();
+
+var post = await client.Posts.CreateAsync(new CreatePostParams
+{
+    Body = "Hello",
+    Profiles = ["profile-id"],
+    IdempotencyKey = key,
+});
+
+// Retrying the same call with the same key replays the original response.
+```
+
+Methods that take a parameters record expose it as `IdempotencyKey`; the rest take an
+`idempotencyKey` argument:
+
+```csharp
+await client.Comments.CreateAsync("post-id", "profile-id", "Nice!", idempotencyKey: key);
+await client.Profiles.BackfillPostsAsync("profile-id", "2025-01-01", idempotencyKey: key);
+```
+
+Generate a fresh key per logical operation — a GUID is ideal. Keys are scoped to your
+account and may be up to 255 characters. The SDK never generates keys or retries for you.
+
+| Situation | Result |
+|---|---|
+| First request with the key | Runs normally |
+| Retry after a success | Original status and body replayed |
+| Retry while the first is still running | `ConflictException` (409) — wait and retry |
+| Same key, different request body | `ValidationException` (422) |
+| Retry after an error response | Runs normally — errors are not replayed |
+
+Only successful (`2xx`) responses are stored, so a request that failed validation or hit a
+quota leaves the key free — fix the payload and retry with the same key. Stored responses
+are kept for **24 hours**. Requests without a key are unaffected.
+
 ### Dependency injection
 
 ```csharp
@@ -411,6 +453,12 @@ foreach (var comment in comments.Data)
 // List with pagination
 var comments = await client.Comments.ListAsync("post-id", "profile-id", page: 2, perPage: 10);
 
+// Filter by when PostProxy received the comment (created_at, not posted_at).
+// A bare date means that date's start of day. Applies to top-level comments —
+// one in range brings its full Replies list with it.
+var recent = await client.Comments.ListAsync(
+    "post-id", "profile-id", from: "2026-03-25", to: "2026-03-26T12:00:00Z");
+
 // Get a single comment
 var comment = await client.Comments.GetAsync("post-id", "comment-id", "profile-id");
 
@@ -442,6 +490,41 @@ if (comment.Metadata is not null)
 var dm = await client.Comments.PrivateReplyAsync("post-id", "comment-id", "profile-id", "DM-ing you the details!");
 Console.WriteLine($"Sent DM: {dm.Id}");
 ```
+
+#### Comments across posts
+
+`Comments.ListAllAsync` returns comments spanning every post in the profile group in one
+request — the comments counterpart to `Posts.StatsAsync`. Every filter is optional.
+
+**This list is flat.** Unlike the per-post list, replies are not nested: every comment,
+top-level or reply, is its own entry linked to its parent by `ParentExternalId`, so `Total`
+counts every comment and paging is exact. Entries are `BulkComment`, which adds `PostId`,
+`ProfileId`, and `Platform`.
+
+```csharp
+var all = await client.Comments.ListAllAsync(
+    profiles: ["instagram", "prof-abc"],  // profile IDs or network names, mixed
+    postIds: ["post-1", "post-2"],        // omit for every post in scope
+    from: "2026-03-25",
+    perPage: 50);                         // max 100
+
+foreach (var c in all.Data)
+{
+    // Each entry says where it came from, so you can act on it with the
+    // post-scoped methods above.
+    Console.WriteLine($"{c.Platform} {c.PostId} {c.ProfileId}: {c.Body}");
+
+    if (c.ParentExternalId is not null)
+        Console.WriteLine($"  ↳ reply to {c.ParentExternalId}");
+}
+
+// Reply to one of them
+var first = all.Data[0];
+await client.Comments.CreateAsync(first.PostId, first.ProfileId, "Thanks!", parentId: first.Id);
+```
+
+Unknown or out-of-scope IDs in `postIds` and `profiles` are ignored rather than erroring.
+Results are ordered newest first by receipt time.
 
 ### Direct Messages
 
@@ -588,6 +671,84 @@ var last = bsky.Data.Records[^1];
 Console.WriteLine(last.Stats["followersCount"]);
 ```
 
+Every stats record (post stats and profile stats alike) carries `RawStats` alongside the
+normalized `Stats`, exposing each metric under its **original platform name**:
+
+```csharp
+var stats = await client.Posts.StatsAsync(new PostStatsParams { PostIds = ["post-id"] });
+var record = stats.Data["post-id"].Platforms[0].Records[0];
+
+Console.WriteLine(record.Stats["impressions"]);              // normalized
+Console.WriteLine(record.RawStats?["views"]);                // Instagram's own name
+Console.WriteLine(record.RawStats?["impression_count"]);     // Twitter/X's own name
+```
+
+LinkedIn post stats now normalize `likes`, `comments`, `shares`, and `clicks` alongside
+`impressions` — previously only `impressions` was normalized.
+
+#### Post syncs & backfill
+
+PostProxy mirrors posts published natively on a platform into your account. Every one of
+those pulls is recorded as a **post sync**: the one fired when the profile connects, the
+recurring poll, and any backfill you start.
+
+```csharp
+// Start a backfill — walks the feed backwards from the newest post in batches
+// of 25 until it reaches `from` or the platform stops returning posts.
+var sync = await client.Profiles.BackfillPostsAsync("profile-id", "2025-01-01");
+Console.WriteLine($"{sync.Id} {sync.Status}"); // "sync456def Pending"
+
+// Poll it to completion — finished when Status is Completed or Failed
+var run = await client.Profiles.GetPostSyncAsync("profile-id", sync.Id);
+Console.WriteLine($"{run.PostsImported} of {run.PostsSeen}, back to {run.OldestPostedAt}");
+
+// List recent runs (kept for 30 days), newest first
+var runs = await client.Profiles.ListPostSyncsAsync(
+    "profile-id",
+    trigger: PostSyncTrigger.Backfill,   // Connect | Scheduled | Backfill
+    status: PostSyncStatus.Completed,    // Pending | Running | Completed | Failed
+    perPage: 25);
+```
+
+| `PostSync` property | Description |
+|---|---|
+| `Id` | Sync identifier |
+| `ProfileId` | Profile this run belongs to |
+| `Kind` | Always `posts` today |
+| `Trigger` | `Connect`, `Scheduled`, or `Backfill` |
+| `Status` | `Pending`, `Running`, `Completed`, or `Failed` |
+| `StartedAt` / `CompletedAt` | `DateTimeOffset?` |
+| `PostsSeen` | Posts the platform returned across the run |
+| `PostsImported` | Posts that were **new** and got created |
+| `BackfillFrom` | The date floor requested; null for `Connect`/`Scheduled` |
+| `OldestPostedAt` | Publish date of the oldest post the run reached |
+| `Error` | Platform error message when `Status` is `Failed` |
+| `CreatedAt` | `DateTimeOffset` |
+
+**How far back a backfill reaches depends on the platform's API**, not on PostProxy: where
+history is pageable we follow it, otherwise the run ends early with whatever it got and
+still reports `PostSyncStatus.Completed`.
+
+Only one backfill runs per profile at a time — starting a second throws `ConflictException`
+carrying the running one's id:
+
+```csharp
+try
+{
+    await client.Profiles.BackfillPostsAsync("profile-id", "2025-01-01");
+}
+catch (ConflictException e)
+{
+    var runningId = e.Response!["profile_sync_id"].ToString();
+    // Poll the run that's already going.
+}
+```
+
+Posts you already have are skipped, so overlapping backfills are safe. Imported posts
+behave exactly like ones the poll picks up (`source: "imported"`, `post.imported` webhook),
+but a backfill's follow-up work is queued at a lower priority so a deep run can't slow down
+publishing.
+
 ### Profile Groups
 
 ```csharp
@@ -663,7 +824,10 @@ Exception hierarchy:
 | `AuthenticationException` | 401 |
 | `BadRequestException` | 400 |
 | `NotFoundException` | 404 |
+| `ConflictException` | 409 — duplicate submission (`Response["duplicate_post_id"]`), a backfill already running (`Response["profile_sync_id"]`), or an in-flight `Idempotency-Key` |
 | `ValidationException` | 422 |
+
+A `429` (posting rate limit reached) surfaces as the base `PostProxyException`.
 
 ## Types
 
@@ -690,12 +854,14 @@ Key types:
 | `StatsResponse` | Data (dictionary keyed by post ID) |
 | `PostStats` | Platforms |
 | `PlatformStats` | ProfileId, Platform, Records |
-| `StatsRecord` | Stats (dictionary of metric name to value), RecordedAt |
+| `StatsRecord` | Stats (dictionary of metric name to value), RawStats (metrics under their platform-native names), RecordedAt |
 | `Queue` | Id, Name, Description, Timezone, Enabled, Jitter, ProfileGroupId, Timeslots, PostsCount |
 | `Timeslot` | Id, Day, Time |
 | `NextSlotResponse` | NextSlot |
 | `ListResponse<T>` | Data |
 | `Comment` | Id, ExternalId, Body, Status, AuthorUsername, AuthorAvatarUrl, AuthorExternalId, ParentExternalId, LikeCount, IsHidden, Permalink, PlatformData, PostedAt, CreatedAt, Replies |
+| `BulkComment` | Every `Comment` property except `Replies`, plus PostId, ProfileId, Platform — returned by `Comments.ListAllAsync` |
+| `PostSync` | Id, ProfileId, Kind, Trigger, Status, StartedAt, CompletedAt, PostsSeen, PostsImported, BackfillFrom, OldestPostedAt, Error, CreatedAt |
 | `AcceptedResponse` | Accepted |
 | `PaginatedResponse<T>` | Data, Total, Page, PerPage |
 
@@ -704,7 +870,8 @@ Key types:
 | Type | Platform |
 |---|---|
 | `FacebookParams` | Format (`Post`, `Story`), FirstComment, PageId |
-| `InstagramParams` | Format (`Post`, `Reel`, `Story`), FirstComment, Collaborators, CoverUrl, AudioName, TrialStrategy, ThumbOffset |
+| `InstagramParams` | Format (`Post`, `Reel`, `Story`), FirstComment, Collaborators, CoverUrl, AudioName, TrialStrategy, ThumbOffset, UserTags |
+| `InstagramUserTag` | Username, X, Y, MediaIndex |
 | `TikTokParams` | Format (`Video`, `Image`), PrivacyStatus, PhotoCoverIndex, AutoAddMusic, MadeWithAi, DisableComment, DisableDuet, DisableStitch, BrandContentToggle, BrandOrganicToggle |
 | `LinkedInParams` | Format (`Post`), OrganizationId |
 | `YouTubeParams` | Format (`Post`), Title, PrivacyStatus, CoverUrl, MadeForKids, Tags, CategoryId, ContainsSyntheticMedia |
@@ -732,6 +899,37 @@ var platforms = new PlatformParams
     },
 };
 ```
+
+#### Instagram user tags
+
+Tag public Instagram accounts in a post — feed post, reel, or story:
+
+```csharp
+var platforms = new PlatformParams
+{
+    Instagram = new InstagramParams
+    {
+        Format = InstagramFormat.Post,
+        UserTags =
+        [
+            new InstagramUserTag { Username = "natgeo", X = 0.5, Y = 0.4 },               // slide 0
+            new InstagramUserTag { Username = "nasa", X = 0.2, Y = 0.8, MediaIndex = 1 }, // slide 1
+            new InstagramUserTag { Username = "spacex", MediaIndex = 2 },                 // video — username only
+        ],
+    },
+};
+```
+
+- **Images require `X` and `Y`** — floats `0.0`–`1.0` measured from the top-left corner.
+- **Reels and video slides** are tagged by username only; coordinates are ignored and dropped.
+- **Stories** accept coordinates but don't need them.
+- `MediaIndex` picks the carousel slide (0-based, defaults to `0`, video slides included).
+- A leading `@` on a username is stripped for you.
+
+Coordinates outside `0.0`–`1.0`, a `MediaIndex` past the last media item, or an image tag
+missing `X`/`Y` are rejected with a `ValidationException` naming the offending entry.
+Accounts that are private or have tagging turned off are silently skipped by Instagram at
+publish time.
 
 Wrap them in `PlatformParams` when passing to `Posts.CreateAsync()`.
 

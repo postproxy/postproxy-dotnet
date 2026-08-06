@@ -28,6 +28,13 @@ public record CreatePostParams
     public string? QueueId { get; init; }
     public string? QueuePriority { get; init; }
     public string? ProfileGroupId { get; init; }
+
+    /// <summary>
+    /// Optional Idempotency-Key. Retrying with the same key replays the
+    /// original response instead of running the request again.
+    /// </summary>
+    [JsonIgnore]
+    public string? IdempotencyKey { get; init; }
 }
 
 public record UpdatePostParams
@@ -43,4 +50,11 @@ public record UpdatePostParams
     public string? QueueId { get; init; }
     public string? QueuePriority { get; init; }
     public string? ProfileGroupId { get; init; }
+
+    /// <summary>
+    /// Optional Idempotency-Key. Retrying with the same key replays the
+    /// original response instead of running the request again.
+    /// </summary>
+    [JsonIgnore]
+    public string? IdempotencyKey { get; init; }
 }

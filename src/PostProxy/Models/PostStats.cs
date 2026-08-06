@@ -31,6 +31,13 @@ public record StatsRecord
     [JsonPropertyName("stats")]
     public required IReadOnlyDictionary<string, long> Stats { get; init; }
 
+    /// <summary>
+    /// Every metric under its original platform name, e.g. <c>views</c> for
+    /// Instagram or <c>impression_count</c> for Twitter/X.
+    /// </summary>
+    [JsonPropertyName("raw_stats")]
+    public IReadOnlyDictionary<string, object>? RawStats { get; init; }
+
     [JsonPropertyName("recorded_at")]
     public DateTimeOffset RecordedAt { get; init; }
 }

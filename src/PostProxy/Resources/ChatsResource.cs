@@ -45,7 +45,7 @@ public class ChatsResource
         if (parameters.ParticipantUsername is not null) body["participant_username"] = parameters.ParticipantUsername;
         if (parameters.ParticipantName is not null) body["participant_name"] = parameters.ParticipantName;
 
-        return _client.PostAsync<Chat>($"/api/profiles/{Uri.EscapeDataString(profileId)}/chats", body, query, cancellationToken);
+        return _client.PostAsync<Chat>($"/api/profiles/{Uri.EscapeDataString(profileId)}/chats", body, query, cancellationToken, parameters.IdempotencyKey);
     }
 
     public Task<Chat> GetAsync(string chatId, CancellationToken cancellationToken = default) =>
@@ -59,17 +59,23 @@ public class ChatsResource
     public Task<Chat> ArchiveAsync(string chatId, CancellationToken cancellationToken = default) =>
         ArchiveAsync(chatId, null, cancellationToken);
 
-    public Task<Chat> ArchiveAsync(string chatId, string? profileGroupId, CancellationToken cancellationToken = default)
+    public Task<Chat> ArchiveAsync(string chatId, string? profileGroupId, CancellationToken cancellationToken = default) =>
+        ArchiveAsync(chatId, profileGroupId, null, cancellationToken);
+
+    public Task<Chat> ArchiveAsync(string chatId, string? profileGroupId, string? idempotencyKey, CancellationToken cancellationToken = default)
     {
-        return _client.PostAsync<Chat>($"/api/chats/{Uri.EscapeDataString(chatId)}/archive", null, BuildQuery(profileGroupId), cancellationToken);
+        return _client.PostAsync<Chat>($"/api/chats/{Uri.EscapeDataString(chatId)}/archive", null, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
     }
 
     public Task<Chat> UnarchiveAsync(string chatId, CancellationToken cancellationToken = default) =>
         UnarchiveAsync(chatId, null, cancellationToken);
 
-    public Task<Chat> UnarchiveAsync(string chatId, string? profileGroupId, CancellationToken cancellationToken = default)
+    public Task<Chat> UnarchiveAsync(string chatId, string? profileGroupId, CancellationToken cancellationToken = default) =>
+        UnarchiveAsync(chatId, profileGroupId, null, cancellationToken);
+
+    public Task<Chat> UnarchiveAsync(string chatId, string? profileGroupId, string? idempotencyKey, CancellationToken cancellationToken = default)
     {
-        return _client.DeleteAsync<Chat>($"/api/chats/{Uri.EscapeDataString(chatId)}/archive", BuildQuery(profileGroupId), cancellationToken);
+        return _client.DeleteAsync<Chat>($"/api/chats/{Uri.EscapeDataString(chatId)}/archive", BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
     }
 
     private Dictionary<string, string> BuildQuery(string? profileGroupId)

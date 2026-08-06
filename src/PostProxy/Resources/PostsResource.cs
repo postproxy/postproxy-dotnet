@@ -89,7 +89,7 @@ public class PostsResource
             QueuePriority = parameters.QueuePriority,
         };
 
-        return _client.PostAsync<Post>("/api/posts", body, cancellationToken: cancellationToken);
+        return _client.PostAsync<Post>("/api/posts", body, cancellationToken: cancellationToken, idempotencyKey: parameters.IdempotencyKey);
     }
 
     private Task<Post> CreateMultipartAsync(CreatePostParams parameters, string? profileGroupId, CancellationToken cancellationToken)
@@ -150,7 +150,8 @@ public class PostsResource
             null,
             fields,
             allFiles,
-            cancellationToken);
+            cancellationToken,
+            parameters.IdempotencyKey);
     }
 
     private static void AddPlatformFields(List<KeyValuePair<string, string>> fields, PlatformParams? platforms)
@@ -217,7 +218,7 @@ public class PostsResource
         if (profileGroupId is not null)
             query["profile_group_id"] = profileGroupId;
 
-        return _client.PatchAsync<Post>($"/api/posts/{Uri.EscapeDataString(id)}", body, query, cancellationToken);
+        return _client.PatchAsync<Post>($"/api/posts/{Uri.EscapeDataString(id)}", body, query, cancellationToken, parameters.IdempotencyKey);
     }
 
     private Task<Post> UpdateMultipartAsync(string id, UpdatePostParams parameters, string? profileGroupId, CancellationToken cancellationToken)
@@ -279,20 +280,24 @@ public class PostsResource
             null,
             fields,
             allFiles,
-            cancellationToken);
+            cancellationToken,
+            parameters.IdempotencyKey);
     }
 
     public Task<Post> PublishDraftAsync(string id, CancellationToken cancellationToken = default) =>
         PublishDraftAsync(id, null, cancellationToken);
 
-    public Task<Post> PublishDraftAsync(string id, string? profileGroupId, CancellationToken cancellationToken = default)
+    public Task<Post> PublishDraftAsync(string id, string? profileGroupId, CancellationToken cancellationToken = default) =>
+        PublishDraftAsync(id, profileGroupId, null, cancellationToken);
+
+    public Task<Post> PublishDraftAsync(string id, string? profileGroupId, string? idempotencyKey, CancellationToken cancellationToken = default)
     {
         var query = new Dictionary<string, string>();
         var pgId = profileGroupId ?? _defaultProfileGroupId;
         if (pgId is not null)
             query["profile_group_id"] = pgId;
 
-        return _client.PostAsync<Post>($"/api/posts/{Uri.EscapeDataString(id)}/publish", queryParams: query, cancellationToken: cancellationToken);
+        return _client.PostAsync<Post>($"/api/posts/{Uri.EscapeDataString(id)}/publish", queryParams: query, cancellationToken: cancellationToken, idempotencyKey: idempotencyKey);
     }
 
     public Task<DeleteResponse> DeleteAsync(string id, CancellationToken cancellationToken = default) =>
@@ -301,7 +306,10 @@ public class PostsResource
     public Task<DeleteResponse> DeleteAsync(string id, string? profileGroupId, CancellationToken cancellationToken = default) =>
         DeleteAsync(id, null, profileGroupId, cancellationToken);
 
-    public Task<DeleteResponse> DeleteAsync(string id, bool? deleteOnPlatform, string? profileGroupId, CancellationToken cancellationToken = default)
+    public Task<DeleteResponse> DeleteAsync(string id, bool? deleteOnPlatform, string? profileGroupId, CancellationToken cancellationToken = default) =>
+        DeleteAsync(id, deleteOnPlatform, profileGroupId, null, cancellationToken);
+
+    public Task<DeleteResponse> DeleteAsync(string id, bool? deleteOnPlatform, string? profileGroupId, string? idempotencyKey, CancellationToken cancellationToken = default)
     {
         var query = new Dictionary<string, string>();
         var pgId = profileGroupId ?? _defaultProfileGroupId;
@@ -310,7 +318,7 @@ public class PostsResource
         if (deleteOnPlatform is not null)
             query["delete_on_platform"] = deleteOnPlatform.Value ? "true" : "false";
 
-        return _client.DeleteAsync<DeleteResponse>($"/api/posts/{Uri.EscapeDataString(id)}", query, cancellationToken);
+        return _client.DeleteAsync<DeleteResponse>($"/api/posts/{Uri.EscapeDataString(id)}", query, cancellationToken, idempotencyKey);
     }
 
     public Task<DeleteOnPlatformResponse> DeleteOnPlatformAsync(string id, CancellationToken cancellationToken = default) =>
@@ -335,7 +343,8 @@ public class PostsResource
             $"/api/posts/{Uri.EscapeDataString(id)}/delete_on_platform",
             body.Count > 0 ? body : null,
             query,
-            cancellationToken);
+            cancellationToken,
+            parameters?.IdempotencyKey);
     }
 
     public Task<StatsResponse> StatsAsync(PostStatsParams parameters, CancellationToken cancellationToken = default)

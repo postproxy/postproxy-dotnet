@@ -27,6 +27,7 @@ public class QueuesResource
         string? timezone = null,
         int? jitter = null,
         IEnumerable<object>? timeslots = null,
+        string? idempotencyKey = null,
         CancellationToken cancellationToken = default)
     {
         var postQueue = new Dictionary<string, object> { ["name"] = name };
@@ -41,7 +42,7 @@ public class QueuesResource
             ["post_queue"] = postQueue,
         };
 
-        return _client.PostAsync<Queue>("/api/post_queues", body, cancellationToken: cancellationToken);
+        return _client.PostAsync<Queue>("/api/post_queues", body, cancellationToken: cancellationToken, idempotencyKey: idempotencyKey);
     }
 
     public Task<Queue> UpdateAsync(
@@ -52,6 +53,7 @@ public class QueuesResource
         bool? enabled = null,
         int? jitter = null,
         IEnumerable<object>? timeslots = null,
+        string? idempotencyKey = null,
         CancellationToken cancellationToken = default)
     {
         var postQueue = new Dictionary<string, object>();
@@ -64,9 +66,12 @@ public class QueuesResource
 
         var body = new Dictionary<string, object> { ["post_queue"] = postQueue };
 
-        return _client.PatchAsync<Queue>($"/api/post_queues/{Uri.EscapeDataString(id)}", body, cancellationToken: cancellationToken);
+        return _client.PatchAsync<Queue>($"/api/post_queues/{Uri.EscapeDataString(id)}", body, cancellationToken: cancellationToken, idempotencyKey: idempotencyKey);
     }
 
     public Task<DeleteResponse> DeleteAsync(string id, CancellationToken cancellationToken = default) =>
-        _client.DeleteAsync<DeleteResponse>($"/api/post_queues/{Uri.EscapeDataString(id)}", cancellationToken: cancellationToken);
+        DeleteAsync(id, null, cancellationToken);
+
+    public Task<DeleteResponse> DeleteAsync(string id, string? idempotencyKey, CancellationToken cancellationToken = default) =>
+        _client.DeleteAsync<DeleteResponse>($"/api/post_queues/{Uri.EscapeDataString(id)}", cancellationToken: cancellationToken, idempotencyKey: idempotencyKey);
 }

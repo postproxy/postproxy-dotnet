@@ -15,6 +15,6 @@ public class UserAgentTests
     [Fact]
     public void Version_IsBumped()
     {
-        Assert.Equal("1.11.0", SdkVersion.Version);
+        Assert.Equal("1.12.0", SdkVersion.Version);
     }
 }

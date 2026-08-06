@@ -29,8 +29,25 @@ foreach (var comment in comments.Data)
     }
 }
 
-// Create a comment
-var newComment = await client.Comments.CreateAsync(postId, profileId, "Thanks for the feedback!");
+// Filter the per-post list by when PostProxy received the comment
+var recent = await client.Comments.ListAsync(postId, profileId, from: "2026-03-25", to: "2026-03-26");
+Console.WriteLine($"Comments received 2026-03-25..26: {recent.Total}");
+
+// List comments across every post in the profile group. Flat: replies come back
+// as their own entries linked by ParentExternalId.
+var across = await client.Comments.ListAllAsync(profiles: ["instagram"], from: "2026-03-25", perPage: 50);
+Console.WriteLine($"Comments across posts: {across.Total}");
+foreach (var c in across.Data)
+{
+    var kind = c.ParentExternalId is null ? "comment" : "reply";
+    Console.WriteLine($"  [{c.Platform}] {kind} on post {c.PostId} — {c.AuthorUsername}: {c.Body}");
+}
+
+// Create a comment. An idempotency key makes the write safe to retry after a
+// dropped connection — the retry replays the original response instead of
+// posting a second comment.
+var newComment = await client.Comments.CreateAsync(
+    postId, profileId, "Thanks for the feedback!", idempotencyKey: Guid.NewGuid().ToString());
 Console.WriteLine($"Created: {newComment.Id} (status: {newComment.Status})");
 
 // Reply to a comment

@@ -18,18 +18,24 @@ public class ProfileGroupsResource
     public Task<ProfileGroup> GetAsync(string id, CancellationToken cancellationToken = default) =>
         _client.GetAsync<ProfileGroup>($"/api/profile_groups/{Uri.EscapeDataString(id)}", cancellationToken: cancellationToken);
 
-    public Task<ProfileGroup> CreateAsync(string name, CancellationToken cancellationToken = default)
+    public Task<ProfileGroup> CreateAsync(string name, CancellationToken cancellationToken = default) =>
+        CreateAsync(name, null, cancellationToken);
+
+    public Task<ProfileGroup> CreateAsync(string name, string? idempotencyKey, CancellationToken cancellationToken = default)
     {
         var body = new CreateProfileGroupBody
         {
             ProfileGroup = new ProfileGroupNameBody { Name = name },
         };
 
-        return _client.PostAsync<ProfileGroup>("/api/profile_groups", body, cancellationToken: cancellationToken);
+        return _client.PostAsync<ProfileGroup>("/api/profile_groups", body, cancellationToken: cancellationToken, idempotencyKey: idempotencyKey);
     }
 
     public Task<DeleteResponse> DeleteAsync(string id, CancellationToken cancellationToken = default) =>
-        _client.DeleteAsync<DeleteResponse>($"/api/profile_groups/{Uri.EscapeDataString(id)}", cancellationToken: cancellationToken);
+        DeleteAsync(id, null, cancellationToken);
+
+    public Task<DeleteResponse> DeleteAsync(string id, string? idempotencyKey, CancellationToken cancellationToken = default) =>
+        _client.DeleteAsync<DeleteResponse>($"/api/profile_groups/{Uri.EscapeDataString(id)}", cancellationToken: cancellationToken, idempotencyKey: idempotencyKey);
 
     /// <summary>
     /// Initialize an OAuth connection. For BlueSky and Telegram use

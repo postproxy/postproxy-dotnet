@@ -26,15 +26,21 @@ public class ProfileCommentsResource
         return _client.GetAsync<ProfileComment>($"/api/profiles/{Uri.EscapeDataString(profileId)}/comments/{Uri.EscapeDataString(commentId)}", null, cancellationToken);
     }
 
-    public Task<ProfileComment> CreateAsync(string profileId, string parentId, string text, CancellationToken cancellationToken = default)
+    public Task<ProfileComment> CreateAsync(string profileId, string parentId, string text, CancellationToken cancellationToken = default) =>
+        CreateAsync(profileId, parentId, text, null, cancellationToken);
+
+    public Task<ProfileComment> CreateAsync(string profileId, string parentId, string text, string? idempotencyKey, CancellationToken cancellationToken = default)
     {
         var body = new Dictionary<string, object> { ["parent_id"] = parentId, ["text"] = text };
 
-        return _client.PostAsync<ProfileComment>($"/api/profiles/{Uri.EscapeDataString(profileId)}/comments", body, null, cancellationToken);
+        return _client.PostAsync<ProfileComment>($"/api/profiles/{Uri.EscapeDataString(profileId)}/comments", body, null, cancellationToken, idempotencyKey);
     }
 
-    public Task<AcceptedResponse> DeleteAsync(string profileId, string commentId, CancellationToken cancellationToken = default)
+    public Task<AcceptedResponse> DeleteAsync(string profileId, string commentId, CancellationToken cancellationToken = default) =>
+        DeleteAsync(profileId, commentId, null, cancellationToken);
+
+    public Task<AcceptedResponse> DeleteAsync(string profileId, string commentId, string? idempotencyKey, CancellationToken cancellationToken = default)
     {
-        return _client.DeleteAsync<AcceptedResponse>($"/api/profiles/{Uri.EscapeDataString(profileId)}/comments/{Uri.EscapeDataString(commentId)}", null, cancellationToken);
+        return _client.DeleteAsync<AcceptedResponse>($"/api/profiles/{Uri.EscapeDataString(profileId)}/comments/{Uri.EscapeDataString(commentId)}", null, cancellationToken, idempotencyKey);
     }
 }

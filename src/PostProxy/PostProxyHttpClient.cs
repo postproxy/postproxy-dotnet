@@ -29,30 +29,36 @@ public class PostProxyHttpClient
         return await HandleResponseAsync<T>(response, cancellationToken);
     }
 
-    internal async Task<T> PostAsync<T>(string path, object? body = null, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default)
+    internal async Task<T> PostAsync<T>(string path, object? body = null, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default, string? idempotencyKey = null)
     {
         var url = BuildUrl(path, queryParams);
         using var content = body is not null
             ? new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
             : null;
-        using var response = await _httpClient.PostAsync(url, content, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+        AddIdempotencyKey(request, idempotencyKey);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
         return await HandleResponseAsync<T>(response, cancellationToken);
     }
 
-    internal async Task<T> PatchAsync<T>(string path, object? body = null, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default)
+    internal async Task<T> PatchAsync<T>(string path, object? body = null, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default, string? idempotencyKey = null)
     {
         var url = BuildUrl(path, queryParams);
         using var content = body is not null
             ? new StringContent(JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json")
             : null;
-        using var response = await _httpClient.PatchAsync(url, content, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Patch, url) { Content = content };
+        AddIdempotencyKey(request, idempotencyKey);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
         return await HandleResponseAsync<T>(response, cancellationToken);
     }
 
-    internal async Task<T> DeleteAsync<T>(string path, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default)
+    internal async Task<T> DeleteAsync<T>(string path, Dictionary<string, string>? queryParams = null, CancellationToken cancellationToken = default, string? idempotencyKey = null)
     {
         var url = BuildUrl(path, queryParams);
-        using var response = await _httpClient.DeleteAsync(url, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Delete, url);
+        AddIdempotencyKey(request, idempotencyKey);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
         return await HandleResponseAsync<T>(response, cancellationToken);
     }
 
@@ -61,7 +67,8 @@ public class PostProxyHttpClient
         Dictionary<string, string>? queryParams,
         IEnumerable<KeyValuePair<string, string>> formFields,
         IEnumerable<(string FieldName, string FilePath)> files,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? idempotencyKey = null)
     {
         var url = BuildUrl(path, queryParams);
         using var content = new MultipartFormDataContent($"----PostProxy{Guid.NewGuid():N}");
@@ -79,7 +86,9 @@ public class PostProxyHttpClient
             content.Add(streamContent, fieldName, Path.GetFileName(filePath));
         }
 
-        using var response = await _httpClient.PostAsync(url, content, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+        AddIdempotencyKey(request, idempotencyKey);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
         return await HandleResponseAsync<T>(response, cancellationToken);
     }
 
@@ -88,7 +97,8 @@ public class PostProxyHttpClient
         Dictionary<string, string>? queryParams,
         IEnumerable<KeyValuePair<string, string>> formFields,
         IEnumerable<(string FieldName, string FilePath)> files,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? idempotencyKey = null)
     {
         var url = BuildUrl(path, queryParams);
         using var content = new MultipartFormDataContent($"----PostProxy{Guid.NewGuid():N}");
@@ -107,8 +117,15 @@ public class PostProxyHttpClient
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Patch, url) { Content = content };
+        AddIdempotencyKey(request, idempotencyKey);
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         return await HandleResponseAsync<T>(response, cancellationToken);
+    }
+
+    private static void AddIdempotencyKey(HttpRequestMessage request, string? idempotencyKey)
+    {
+        if (idempotencyKey is not null)
+            request.Headers.Add("Idempotency-Key", idempotencyKey);
     }
 
     private static string BuildUrl(string path, Dictionary<string, string>? queryParams)

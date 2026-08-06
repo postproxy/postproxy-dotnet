@@ -63,7 +63,7 @@ public class MessagesResource
             foreach (var filePath in parameters.MediaFiles)
                 files.Add(("media[]", filePath));
 
-            return _client.PostMultipartAsync<Message>(path, query, fields, files, cancellationToken);
+            return _client.PostMultipartAsync<Message>(path, query, fields, files, cancellationToken, parameters.IdempotencyKey);
         }
 
         var jsonBody = new Dictionary<string, object?>();
@@ -73,7 +73,7 @@ public class MessagesResource
         if (parameters.ReplyToExternalId is not null) jsonBody["reply_to_external_id"] = parameters.ReplyToExternalId;
         if (parameters.ReplyMarkup is not null) jsonBody["reply_markup"] = parameters.ReplyMarkup;
 
-        return _client.PostAsync<Message>(path, jsonBody, query, cancellationToken);
+        return _client.PostAsync<Message>(path, jsonBody, query, cancellationToken, parameters.IdempotencyKey);
     }
 
     public Task<Message> GetAsync(string messageId, CancellationToken cancellationToken = default) =>
@@ -92,7 +92,7 @@ public class MessagesResource
         if (parameters.Body is not null) jsonBody["body"] = parameters.Body;
         if (parameters.ReplyMarkup is not null) jsonBody["reply_markup"] = parameters.ReplyMarkup;
 
-        return _client.PatchAsync<Message>($"/api/messages/{Uri.EscapeDataString(messageId)}", jsonBody, BuildQuery(parameters.ProfileGroupId), cancellationToken);
+        return _client.PatchAsync<Message>($"/api/messages/{Uri.EscapeDataString(messageId)}", jsonBody, BuildQuery(parameters.ProfileGroupId), cancellationToken, parameters.IdempotencyKey);
     }
 
     public Task<Message> ReactAsync(string messageId, CancellationToken cancellationToken = default) =>
@@ -108,15 +108,19 @@ public class MessagesResource
             $"/api/messages/{Uri.EscapeDataString(messageId)}/react",
             jsonBody.Count > 0 ? jsonBody : null,
             BuildQuery(parameters?.ProfileGroupId),
-            cancellationToken);
+            cancellationToken,
+            parameters?.IdempotencyKey);
     }
 
     public Task<Message> UnreactAsync(string messageId, CancellationToken cancellationToken = default) =>
         UnreactAsync(messageId, null, cancellationToken);
 
-    public Task<Message> UnreactAsync(string messageId, string? profileGroupId, CancellationToken cancellationToken = default)
+    public Task<Message> UnreactAsync(string messageId, string? profileGroupId, CancellationToken cancellationToken = default) =>
+        UnreactAsync(messageId, profileGroupId, null, cancellationToken);
+
+    public Task<Message> UnreactAsync(string messageId, string? profileGroupId, string? idempotencyKey, CancellationToken cancellationToken = default)
     {
-        return _client.DeleteAsync<Message>($"/api/messages/{Uri.EscapeDataString(messageId)}/unreact", BuildQuery(profileGroupId), cancellationToken);
+        return _client.DeleteAsync<Message>($"/api/messages/{Uri.EscapeDataString(messageId)}/unreact", BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
     }
 
     private Dictionary<string, string> BuildQuery(string? profileGroupId)

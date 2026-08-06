@@ -143,4 +143,102 @@ public class ProfilesResourceTests
 
         Assert.Equal(401, ex.StatusCode);
     }
+
+    private const string PostSyncJson = """
+    {
+        "id": "sync456def",
+        "profile_id": "prof-1",
+        "kind": "posts",
+        "trigger": "backfill",
+        "status": "running",
+        "started_at": "2026-08-06T09:15:02.000Z",
+        "completed_at": null,
+        "posts_seen": 150,
+        "posts_imported": 143,
+        "backfill_from": "2025-01-01T00:00:00.000Z",
+        "oldest_posted_at": "2025-11-04T18:22:00.000Z",
+        "error": null,
+        "created_at": "2026-08-06T09:15:00.000Z"
+    }
+    """;
+
+    [Fact]
+    public async Task BackfillPostsAsync_StartsARun()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse(HttpStatusCode.Accepted, PostSyncJson);
+
+        var sync = await client.Profiles.BackfillPostsAsync("prof-1", "2025-01-01");
+
+        Assert.Equal("sync456def", sync.Id);
+        Assert.Equal(PostSyncTrigger.Backfill, sync.Trigger);
+        Assert.Equal(PostSyncStatus.Running, sync.Status);
+        Assert.Equal(143, sync.PostsImported);
+        Assert.NotNull(sync.OldestPostedAt);
+
+        var request = handler.Requests[0];
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Contains("/api/profiles/prof-1/backfill_posts", request.Url);
+        Assert.Contains("\"from\":\"2025-01-01\"", request.Body);
+    }
+
+    [Fact]
+    public async Task BackfillPostsAsync_SendsIdempotencyKey()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse(HttpStatusCode.Accepted, PostSyncJson);
+
+        await client.Profiles.BackfillPostsAsync("prof-1", "2025-01-01", idempotencyKey: "key-1");
+
+        Assert.Equal("key-1", handler.Requests[0].Headers["Idempotency-Key"]);
+    }
+
+    [Fact]
+    public async Task BackfillPostsAsync_ThrowsConflictWhenAlreadyRunning()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse(HttpStatusCode.Conflict, """
+        {"error": "A posts backfill is already running for this profile", "profile_sync_id": "sync456def"}
+        """);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => client.Profiles.BackfillPostsAsync("prof-1", "2025-01-01"));
+
+        Assert.Equal(409, ex.StatusCode);
+        Assert.NotNull(ex.Response);
+        Assert.Equal("sync456def", ex.Response!["profile_sync_id"].ToString());
+    }
+
+    [Fact]
+    public async Task ListPostSyncsAsync_SendsFilters()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse($$"""
+        {"total": 1, "page": 0, "per_page": 25, "data": [{{PostSyncJson}}]}
+        """);
+
+        var result = await client.Profiles.ListPostSyncsAsync(
+            "prof-1", PostSyncTrigger.Backfill, PostSyncStatus.Running, perPage: 25);
+
+        Assert.Equal(1, result.Total);
+        Assert.Equal(143, result.Data[0].PostsImported);
+
+        var url = handler.Requests[0].Url;
+        Assert.Contains("/api/profiles/prof-1/post_syncs", url);
+        Assert.Contains("trigger=backfill", url);
+        Assert.Contains("status=running", url);
+        Assert.Contains("per_page=25", url);
+    }
+
+    [Fact]
+    public async Task GetPostSyncAsync_FetchesASingleRun()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse(PostSyncJson.Replace("\"running\"", "\"completed\""));
+
+        var sync = await client.Profiles.GetPostSyncAsync("prof-1", "sync456def");
+
+        Assert.Equal(PostSyncStatus.Completed, sync.Status);
+        Assert.Contains("/api/profiles/prof-1/post_syncs/sync456def", handler.Requests[0].Url);
+    }
 }

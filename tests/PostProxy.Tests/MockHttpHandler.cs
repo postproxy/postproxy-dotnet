@@ -3,7 +3,7 @@ using System.Text;
 
 namespace PostProxy.Tests;
 
-public record RecordedRequest(HttpMethod Method, string Url, string? Body);
+public record RecordedRequest(HttpMethod Method, string Url, string? Body, IReadOnlyDictionary<string, string> Headers);
 
 public class MockHttpHandler : HttpMessageHandler
 {
@@ -25,7 +25,8 @@ public class MockHttpHandler : HttpMessageHandler
         if (request.Content is not null)
             body = await request.Content.ReadAsStringAsync(cancellationToken);
 
-        _requests.Add(new RecordedRequest(request.Method, request.RequestUri!.PathAndQuery, body));
+        var headers = request.Headers.ToDictionary(h => h.Key, h => string.Join(",", h.Value));
+        _requests.Add(new RecordedRequest(request.Method, request.RequestUri!.PathAndQuery, body, headers));
 
         if (_responses.Count == 0)
             throw new InvalidOperationException("No mock responses enqueued");
