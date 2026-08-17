@@ -586,6 +586,75 @@ await client.Messages.ReactAsync("message-id", new ReactParams { Reaction = "lov
 await client.Messages.UnreactAsync("message-id");
 ```
 
+#### Quick replies and buttons (Facebook & Instagram)
+
+Meta's two interactive primitives. **Quick replies** are chips above the participant's
+composer that disappear once tapped; **buttons** are attached to the message and stay in
+the thread. Telegram's equivalent is `ReplyMarkup` — passing `QuickReplies` or `Buttons` on
+a Telegram or Bluesky chat returns `422`.
+
+```csharp
+// Quick replies — up to 13. Title ≤ 20 chars, Payload ≤ 1000.
+await client.Messages.SendAsync("chat-id", new SendMessageParams
+{
+    Body = "What can I help with?",
+    QuickReplies = new[]
+    {
+        new QuickReply { Title = "Track order", Payload = "TRACK" },
+        new QuickReply { Title = "Talk to support", Payload = "HELP" },
+    },
+});
+
+// Buttons — up to 3, each either web_url or postback. Card is optional and
+// requires Buttons.
+await client.Messages.SendAsync("chat-id", new SendMessageParams
+{
+    Body = "Your order shipped",
+    Buttons = new[]
+    {
+        MessageButton.WebUrl("Track", "https://shop.example.com/o/123"),
+        MessageButton.Postback("Cancel", "CANCEL:123"),
+    },
+    Card = new MessageCard
+    {
+        Subtitle = "Arriving Friday",
+        ImageUrl = "https://cdn.example.com/shoe.png",
+        DefaultAction = CardDefaultAction.WebUrl("https://shop.example.com/o/123"),
+    },
+});
+```
+
+Buttons are delivered as a Meta generic template and your `Body` becomes the template's
+element title — so **`Body` is capped at 80 characters when buttons are present**. That is
+Meta's limit, not PostProxy's, and a longer body is rejected with a `422` naming the
+length. Buttons cannot be combined with media. Instagram is stricter than Messenger: it
+delivers quick replies only on a plain-text message, so `QuickReplies` with media or with
+`Buttons` returns `422` on Instagram while both are accepted on Facebook.
+
+Validation happens server-side and names the offending index — `buttons[1].url must be an
+https:// URL` — surfacing as the SDK's usual exception for a `422`.
+
+> The new parameters are sent on the JSON path only. To combine quick replies with an
+> attachment, pass `Media` as a hosted URL rather than uploading via `MediaFiles`.
+
+A tap comes back as an **inbound message** carrying `TappedAction`:
+
+```csharp
+var inbound = await client.Messages.ListAsync("chat-id",
+    new ListMessagesParams { Direction = MessageDirection.Inbound });
+foreach (var msg in inbound.Data)
+{
+    if (msg.TappedAction is not null)
+        // TappedActionKind.QuickReply / Postback / CallbackQuery
+        Console.WriteLine($"{msg.TappedAction.Kind}: {msg.TappedAction.Payload}");
+}
+```
+
+Subscribe to `message.received` to react to taps as they happen — the same field is on the
+webhook payload. `TappedAction` is derived rather than stored, so it also resolves for taps
+recorded before PostProxy exposed it, including Instagram ice-breaker taps and Telegram
+callback queries (`TappedActionKind.CallbackQuery`). A tap also opens the 24h window.
+
 ### Profile comments (Google Business reviews)
 
 Profile-level comments expose Google Business reviews and replies. Reviews are user-generated — the SDK lets you list/get them and reply to or delete your own replies. Reviews sync twice daily.

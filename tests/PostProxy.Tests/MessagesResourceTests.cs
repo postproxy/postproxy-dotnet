@@ -114,6 +114,100 @@ public class MessagesResourceTests
     }
 
     [Fact]
+    public async Task SendAsync_WithQuickReplies()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+          "id": "msg_222", "chat_id": "chat_xyz789", "direction": "outbound",
+          "body": "What can I help with?", "status": "pending",
+          "quick_replies": [{ "content_type": "text", "title": "Track order", "payload": "TRACK" }],
+          "reactions": [], "attachments": [], "is_unsupported": false,
+          "created_at": "2026-05-31T15:30:05Z"
+        }
+        """);
+
+        var msg = await client.Messages.SendAsync("chat_xyz789", new SendMessageParams
+        {
+            Body = "What can I help with?",
+            QuickReplies = new[]
+            {
+                new QuickReply { Title = "Track order", Payload = "TRACK" },
+                new QuickReply { Title = "Talk to support", Payload = "HELP" },
+            },
+        });
+
+        var body = handler.Requests[0].Body;
+        Assert.Contains("\"quick_replies\":[{\"title\":\"Track order\",\"payload\":\"TRACK\"}", body);
+        // Unset ContentType is dropped by WhenWritingNull rather than sent as null.
+        Assert.DoesNotContain("\"content_type\":null", body);
+
+        Assert.Equal("text", msg.QuickReplies![0].ContentType);
+    }
+
+    [Fact]
+    public async Task SendAsync_WithButtonsAndCard()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+          "id": "msg_222", "chat_id": "chat_xyz789", "direction": "outbound",
+          "body": "Your order shipped", "status": "pending",
+          "buttons": [{ "type": "web_url", "title": "Track", "url": "https://shop.example.com" }],
+          "card": { "subtitle": "Arriving Friday" },
+          "reactions": [], "attachments": [], "is_unsupported": false,
+          "created_at": "2026-05-31T15:30:05Z"
+        }
+        """);
+
+        var msg = await client.Messages.SendAsync("chat_xyz789", new SendMessageParams
+        {
+            Body = "Your order shipped",
+            Buttons = new[]
+            {
+                MessageButton.WebUrl("Track", "https://shop.example.com"),
+                MessageButton.Postback("Cancel", "CANCEL:123"),
+            },
+            Card = new MessageCard
+            {
+                Subtitle = "Arriving Friday",
+                DefaultAction = CardDefaultAction.WebUrl("https://shop.example.com"),
+            },
+        });
+
+        var body = handler.Requests[0].Body;
+        Assert.Contains("\"type\":\"web_url\",\"title\":\"Track\",\"url\":\"https://shop.example.com\"", body);
+        Assert.Contains("\"type\":\"postback\",\"title\":\"Cancel\",\"payload\":\"CANCEL:123\"", body);
+        Assert.Contains("\"card\":{\"subtitle\":\"Arriving Friday\"", body);
+        Assert.Contains("\"default_action\":{\"type\":\"web_url\",\"url\":\"https://shop.example.com\"}", body);
+
+        Assert.Equal("https://shop.example.com", msg.Buttons![0].Url);
+        Assert.Equal("Arriving Friday", msg.Card!.Subtitle);
+    }
+
+    [Fact]
+    public async Task GetAsync_ReadsTappedAction()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+          "id": "msg_333", "chat_id": "chat_xyz789", "direction": "inbound",
+          "body": "Track order", "status": "received",
+          "tapped_action": { "kind": "quick_reply", "payload": "TRACK", "title": "Track order" },
+          "reactions": [], "attachments": [], "is_unsupported": false,
+          "created_at": "2026-05-31T14:02:01Z"
+        }
+        """);
+
+        var msg = await client.Messages.GetAsync("msg_333");
+
+        Assert.NotNull(msg.TappedAction);
+        Assert.Equal(TappedActionKind.QuickReply, msg.TappedAction!.Kind);
+        Assert.Equal("TRACK", msg.TappedAction.Payload);
+        Assert.Equal("Track order", msg.TappedAction.Title);
+    }
+
+    [Fact]
     public async Task SendAsync_WithMediaFiles_UsesMultipart()
     {
         var (client, handler) = TestHelpers.CreateMockClient();

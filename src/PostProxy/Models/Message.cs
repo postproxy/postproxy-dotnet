@@ -53,6 +53,18 @@ public record Message
     [JsonPropertyName("reply_markup")]
     public IReadOnlyDictionary<string, JsonElement>? ReplyMarkup { get; init; }
 
+    [JsonPropertyName("quick_replies")]
+    public IReadOnlyList<QuickReply>? QuickReplies { get; init; }
+
+    [JsonPropertyName("buttons")]
+    public IReadOnlyList<MessageButton>? Buttons { get; init; }
+
+    [JsonPropertyName("card")]
+    public MessageCard? Card { get; init; }
+
+    [JsonPropertyName("tapped_action")]
+    public TappedAction? TappedAction { get; init; }
+
     [JsonPropertyName("external_deleted_at")]
     public DateTimeOffset? ExternalDeletedAt { get; init; }
 

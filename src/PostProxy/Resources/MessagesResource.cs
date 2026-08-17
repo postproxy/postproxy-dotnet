@@ -72,6 +72,9 @@ public class MessagesResource
         if (parameters.Tag is not null) jsonBody["tag"] = parameters.Tag;
         if (parameters.ReplyToExternalId is not null) jsonBody["reply_to_external_id"] = parameters.ReplyToExternalId;
         if (parameters.ReplyMarkup is not null) jsonBody["reply_markup"] = parameters.ReplyMarkup;
+        if (parameters.QuickReplies is not null) jsonBody["quick_replies"] = parameters.QuickReplies;
+        if (parameters.Buttons is not null) jsonBody["buttons"] = parameters.Buttons;
+        if (parameters.Card is not null) jsonBody["card"] = parameters.Card;
 
         return _client.PostAsync<Message>(path, jsonBody, query, cancellationToken, parameters.IdempotencyKey);
     }

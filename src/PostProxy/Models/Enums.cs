@@ -162,6 +162,16 @@ public enum MessageStatus
     [JsonStringEnumMemberName("received")] Received,
 }
 
+/// <summary>Which interactive element a participant tapped.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<TappedActionKind>))]
+public enum TappedActionKind
+{
+    [JsonStringEnumMemberName("quick_reply")] QuickReply,
+    [JsonStringEnumMemberName("postback")] Postback,
+    /// <summary>Telegram — a tap on an inline-keyboard button.</summary>
+    [JsonStringEnumMemberName("callback_query")] CallbackQuery,
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<WebhookEventType>))]
 public enum WebhookEventType
 {

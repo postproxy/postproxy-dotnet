@@ -48,6 +48,45 @@ var withMedia = await client.Messages.SendAsync(chat.Id, new SendMessageParams
 });
 Console.WriteLine($"Sent with media: {withMedia.Id}");
 
+// Quick replies — tappable chips above the composer, gone once tapped.
+// Facebook & Instagram only; up to 13.
+await client.Messages.SendAsync(chat.Id, new SendMessageParams
+{
+    Body = "What can I help with?",
+    QuickReplies = new[]
+    {
+        new QuickReply { Title = "Track order", Payload = "TRACK" },
+        new QuickReply { Title = "Talk to support", Payload = "HELP" },
+    },
+});
+
+// Buttons — attached to the message and stay in the thread. Up to 3, and Body is
+// capped at 80 characters when buttons are present (Meta's limit). Card adds
+// subtitle / image / tap-through to the same card.
+await client.Messages.SendAsync(chat.Id, new SendMessageParams
+{
+    Body = "Your order shipped",
+    Buttons = new[]
+    {
+        MessageButton.WebUrl("Track", "https://shop.example.com/o/123"),
+        MessageButton.Postback("Cancel", "CANCEL:123"),
+    },
+    Card = new MessageCard
+    {
+        Subtitle = "Arriving Friday",
+        ImageUrl = "https://cdn.example.com/shoe.png",
+    },
+});
+
+// A tap comes back as an inbound message carrying TappedAction.
+var tapped = await client.Messages.ListAsync(chat.Id,
+    new ListMessagesParams { Direction = MessageDirection.Inbound });
+foreach (var m in tapped.Data)
+{
+    if (m.TappedAction is not null)
+        Console.WriteLine($"  tapped {m.TappedAction.Kind}: {m.TappedAction.Payload}");
+}
+
 // React / unreact to a message
 await client.Messages.ReactAsync(sent.Id, new ReactParams { Reaction = "love", Emoji = "❤️" });
 Console.WriteLine("Reacted to message");
