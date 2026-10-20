@@ -63,13 +63,17 @@ public class PostsResource
             throw new ArgumentException("At least one profile is required.", nameof(parameters));
 
         var profileGroupId = parameters.ProfileGroupId ?? _defaultProfileGroupId;
+        var headers = parameters.SkipDuplicateCheck
+            ? new Dictionary<string, string> { ["X-Skip-Duplicate-Check"] = "true" }
+            : null;
 
         var hasFileUploads = parameters.MediaFiles is { Count: > 0 }
-            || parameters.Thread?.Any(t => t.MediaFiles is { Count: > 0 }) == true;
+            || parameters.Thread?.Any(t => t.MediaFiles is { Count: > 0 }) == true
+            || HasLocalCoverFile(parameters.Platforms);
 
         if (hasFileUploads)
         {
-            return CreateMultipartAsync(parameters, profileGroupId, cancellationToken);
+            return CreateMultipartAsync(parameters, profileGroupId, headers, cancellationToken);
         }
 
         var body = new CreatePostBody
@@ -89,10 +93,10 @@ public class PostsResource
             QueuePriority = parameters.QueuePriority,
         };
 
-        return _client.PostAsync<Post>("/api/posts", body, cancellationToken: cancellationToken, idempotencyKey: parameters.IdempotencyKey);
+        return _client.PostAsync<Post>("/api/posts", body, cancellationToken: cancellationToken, idempotencyKey: parameters.IdempotencyKey, headers: headers);
     }
 
-    private Task<Post> CreateMultipartAsync(CreatePostParams parameters, string? profileGroupId, CancellationToken cancellationToken)
+    private Task<Post> CreateMultipartAsync(CreatePostParams parameters, string? profileGroupId, IReadOnlyDictionary<string, string>? headers, CancellationToken cancellationToken)
     {
         var fields = new List<KeyValuePair<string, string>>
         {
@@ -113,10 +117,16 @@ public class PostsResource
         foreach (var profile in parameters.Profiles)
             fields.Add(new("profiles[]", profile));
 
-        AddPlatformFields(fields, parameters.Platforms);
+        if (parameters.Media is not null)
+        {
+            foreach (var url in parameters.Media)
+                fields.Add(new("media[]", url));
+        }
 
-        // Collect all file paths: parent media + thread child media
+        // Collect all file paths: cover files, parent media + thread child media
         var allFiles = new List<(string FieldName, string FilePath)>();
+
+        AddPlatformFields(fields, allFiles, parameters.Platforms);
 
         if (parameters.MediaFiles is { Count: > 0 })
         {
@@ -151,31 +161,86 @@ public class PostsResource
             fields,
             allFiles,
             cancellationToken,
-            parameters.IdempotencyKey);
+            parameters.IdempotencyKey,
+            headers);
     }
 
-    private static void AddPlatformFields(List<KeyValuePair<string, string>> fields, PlatformParams? platforms)
+    // `cover_file` is a local path unless it's a base64 data URL, which the API
+    // takes as a plain string.
+    private static bool IsLocalCoverFile(string? value) =>
+        value is not null && !value.StartsWith("data:", StringComparison.Ordinal);
+
+    private static bool HasLocalCoverFile(PlatformParams? platforms) =>
+        platforms is not null && (
+            IsLocalCoverFile(platforms.Instagram?.CoverFile)
+            || IsLocalCoverFile(platforms.TikTok?.CoverFile)
+            || IsLocalCoverFile(platforms.YouTube?.CoverFile)
+            || IsLocalCoverFile(platforms.Pinterest?.CoverFile));
+
+    // Platform params as flat form fields; a local `cover_file` is attached as a file.
+    private static void AddPlatformFields(
+        List<KeyValuePair<string, string>> fields,
+        List<(string FieldName, string FilePath)> files,
+        PlatformParams? platforms)
     {
         if (platforms is null) return;
 
-        if (platforms.Facebook?.Format is not null)
-            fields.Add(new("platforms[facebook][format]", JsonSerializer.Serialize(platforms.Facebook.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
-        if (platforms.Instagram?.Format is not null)
-            fields.Add(new("platforms[instagram][format]", JsonSerializer.Serialize(platforms.Instagram.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
-        if (platforms.TikTok?.Format is not null)
-            fields.Add(new("platforms[tiktok][format]", JsonSerializer.Serialize(platforms.TikTok.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
-        if (platforms.LinkedIn?.Format is not null)
-            fields.Add(new("platforms[linkedin][format]", JsonSerializer.Serialize(platforms.LinkedIn.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
-        if (platforms.YouTube?.Format is not null)
-            fields.Add(new("platforms[youtube][format]", JsonSerializer.Serialize(platforms.YouTube.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
-        if (platforms.Twitter?.Format is not null)
-            fields.Add(new("platforms[twitter][format]", JsonSerializer.Serialize(platforms.Twitter.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
-        if (platforms.Threads?.Format is not null)
-            fields.Add(new("platforms[threads][format]", JsonSerializer.Serialize(platforms.Threads.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
-        if (platforms.Pinterest?.Format is not null)
-            fields.Add(new("platforms[pinterest][format]", JsonSerializer.Serialize(platforms.Pinterest.Format.Value, PostProxyHttpClient.JsonOptions).Trim('"')));
+        var root = JsonSerializer.SerializeToElement(platforms, PostProxyHttpClient.JsonOptions);
+        foreach (var platform in root.EnumerateObject())
+        {
+            if (platform.Value.ValueKind != JsonValueKind.Object) continue;
+
+            foreach (var param in platform.Value.EnumerateObject())
+            {
+                var key = $"platforms[{platform.Name}][{param.Name}]";
+                if (param.Name == "cover_file" && param.Value.ValueKind == JsonValueKind.String
+                    && IsLocalCoverFile(param.Value.GetString()))
+                {
+                    files.Add((key, param.Value.GetString()!));
+                    continue;
+                }
+
+                AddFormValue(fields, key, param.Value);
+            }
+        }
     }
 
+    private static void AddFormValue(List<KeyValuePair<string, string>> fields, string key, JsonElement value)
+    {
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.Null:
+            case JsonValueKind.Undefined:
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in value.EnumerateArray())
+                    AddFormValue(fields, $"{key}[]", item);
+                break;
+            case JsonValueKind.Object:
+                foreach (var prop in value.EnumerateObject())
+                    AddFormValue(fields, $"{key}[{prop.Name}]", prop.Value);
+                break;
+            case JsonValueKind.String:
+                fields.Add(new(key, value.GetString()!));
+                break;
+            case JsonValueKind.True:
+                fields.Add(new(key, "true"));
+                break;
+            case JsonValueKind.False:
+                fields.Add(new(key, "false"));
+                break;
+            default:
+                fields.Add(new(key, value.GetRawText()));
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Updates a draft or scheduled post. On a <b>published</b> post only the body,
+    /// the YouTube title and the Pinterest title / destination link can change; the
+    /// edit is pushed to the platforms in the background, reported by the
+    /// <c>platform_post.edited</c> / <c>platform_post.edit_failed</c> webhooks.
+    /// </summary>
     public Task<Post> UpdateAsync(string id, UpdatePostParams parameters, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);
@@ -183,7 +248,8 @@ public class PostsResource
         var profileGroupId = parameters.ProfileGroupId ?? _defaultProfileGroupId;
 
         var hasFileUploads = parameters.MediaFiles is { Count: > 0 }
-            || parameters.Thread?.Any(t => t.MediaFiles is { Count: > 0 }) == true;
+            || parameters.Thread?.Any(t => t.MediaFiles is { Count: > 0 }) == true
+            || HasLocalCoverFile(parameters.Platforms);
 
         if (hasFileUploads)
         {
@@ -244,9 +310,15 @@ public class PostsResource
                 fields.Add(new("profiles[]", profile));
         }
 
-        AddPlatformFields(fields, parameters.Platforms);
+        if (parameters.Media is not null)
+        {
+            foreach (var url in parameters.Media)
+                fields.Add(new("media[]", url));
+        }
 
         var allFiles = new List<(string FieldName, string FilePath)>();
+
+        AddPlatformFields(fields, allFiles, parameters.Platforms);
 
         if (parameters.MediaFiles is { Count: > 0 })
         {

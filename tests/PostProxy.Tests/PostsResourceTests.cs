@@ -419,4 +419,173 @@ public class PostsResourceTests
         Assert.Single(post.Thread);
         Assert.Equal("Reply", post.Thread[0].Body);
     }
+
+    [Fact]
+    public async Task CreateAsync_SendsNewPlatformParams()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"id": "p"}""");
+
+        await client.Posts.CreateAsync(new CreatePostParams
+        {
+            Body = "hi",
+            Profiles = ["prof_1"],
+            Platforms = new PlatformParams
+            {
+                Facebook = new FacebookParams { Link = "https://acme.test", Countries = ["US", "CA"] },
+                Instagram = new InstagramParams
+                {
+                    Format = InstagramFormat.Reel,
+                    AudioId = "123",
+                    AudioVolume = 40,
+                    VideoVolume = 80,
+                    TrialStrategy = InstagramTrialStrategy.Manual,
+                    MadeWithAi = true,
+                },
+                LinkedIn = new LinkedInParams
+                {
+                    Format = LinkedInFormat.Poll,
+                    OrganizationId = "1",
+                    PollQuestion = "Tabs or spaces?",
+                    PollOptions = ["Tabs", "Spaces"],
+                    PollDurationDays = 3,
+                },
+                Threads = new ThreadsParams { TopicTag = "Coffee", AltText = "A cup" },
+                TikTok = new TikTokParams { Format = TikTokFormat.Video, UploadAsDraft = true, CoverUrl = "https://a.test/c.jpg" },
+                Twitter = new TwitterParams { AltText = new[] { "one", "two" } },
+            },
+        });
+
+        var body = handler.Requests[0].Body!;
+        Assert.Contains("\"facebook\":{\"link\":\"https://acme.test\",\"countries\":[\"US\",\"CA\"]}", body);
+        Assert.Contains("\"instagram\":{\"format\":\"reel\",\"audio_id\":\"123\",\"audio_volume\":40,\"video_volume\":80,\"trial_strategy\":\"MANUAL\",\"made_with_ai\":true}", body);
+        Assert.Contains("\"linkedin\":{\"format\":\"poll\",\"organization_id\":\"1\",\"poll_question\":\"Tabs or spaces?\",\"poll_options\":[\"Tabs\",\"Spaces\"],\"poll_duration_days\":3}", body);
+        Assert.Contains("\"threads\":{\"alt_text\":\"A cup\",\"topic_tag\":\"Coffee\"}", body);
+        Assert.Contains("\"tiktok\":{\"format\":\"video\",\"upload_as_draft\":true,\"cover_url\":\"https://a.test/c.jpg\"}", body);
+        Assert.Contains("\"twitter\":{\"alt_text\":[\"one\",\"two\"]}", body);
+    }
+
+    [Fact]
+    public async Task CreateAsync_LocalCoverFile_SwitchesToMultipart()
+    {
+        var coverPath = Path.Combine(Path.GetTempPath(), $"cover-{Guid.NewGuid():N}.jpg");
+        await File.WriteAllBytesAsync(coverPath, [0xFF, 0xD8, 0xFF]);
+        try
+        {
+            var (client, handler) = TestHelpers.CreateMockClient();
+            handler.EnqueueResponse("""{"id": "p"}""");
+
+            await client.Posts.CreateAsync(new CreatePostParams
+            {
+                Body = "New video",
+                Profiles = ["tt-profile"],
+                Media = ["https://a.test/clip.mp4"],
+                Platforms = new PlatformParams
+                {
+                    TikTok = new TikTokParams { Format = TikTokFormat.Video, CoverFile = coverPath, UploadAsDraft = true },
+                },
+            });
+
+            var body = handler.Requests[0].Body!;
+            Assert.StartsWith("--", body); // multipart, not JSON
+            Assert.Contains("platforms[tiktok][cover_file]", body);
+            Assert.Contains(Path.GetFileName(coverPath), body);
+            Assert.Contains("image/jpeg", body);
+            Assert.Contains("platforms[tiktok][format]", body);
+            Assert.Contains("platforms[tiktok][upload_as_draft]", body);
+            Assert.Contains("https://a.test/clip.mp4", body);
+            Assert.DoesNotContain("\"cover_file\"", body);
+        }
+        finally
+        {
+            File.Delete(coverPath);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LocalCoverFile_SwitchesToMultipart()
+    {
+        var coverPath = Path.Combine(Path.GetTempPath(), $"cover-{Guid.NewGuid():N}.png");
+        await File.WriteAllBytesAsync(coverPath, [0x89, 0x50, 0x4E, 0x47]);
+        try
+        {
+            var (client, handler) = TestHelpers.CreateMockClient();
+            handler.EnqueueResponse("""{"id": "post-1"}""");
+
+            await client.Posts.UpdateAsync("post-1", new UpdatePostParams
+            {
+                Platforms = new PlatformParams { YouTube = new YouTubeParams { CoverFile = coverPath } },
+            });
+
+            var req = handler.Requests[0];
+            Assert.Equal(HttpMethod.Patch, req.Method);
+            Assert.Contains("platforms[youtube][cover_file]", req.Body);
+            Assert.Contains(Path.GetFileName(coverPath), req.Body);
+        }
+        finally
+        {
+            File.Delete(coverPath);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_DataUrlCoverFile_StaysJson()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"id": "p"}""");
+        const string dataUrl = "data:image/png;base64,iVBORw0KGgo=";
+
+        await client.Posts.CreateAsync(new CreatePostParams
+        {
+            Body = "Pin",
+            Profiles = ["pin-profile"],
+            Media = ["https://a.test/v.mp4"],
+            Platforms = new PlatformParams
+            {
+                Pinterest = new PinterestParams { BoardId = "b1", CoverFile = dataUrl },
+            },
+        });
+
+        var body = handler.Requests[0].Body!;
+        Assert.StartsWith("{", body);
+        Assert.Contains("\"pinterest\":{\"board_id\":\"b1\",\"cover_file\":\"data:image/png;base64,iVBORw0KGgo=\"}", body);
+    }
+
+    [Fact]
+    public async Task GetAsync_ParsesPlatformResultAndThreadPlatforms()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "id": "post-1",
+            "draft": false,
+            "source": "postproxy",
+            "platforms": [{
+                "platform": "tiktok",
+                "profile_id": "prof_1",
+                "profile_name": "Acme",
+                "status": "published",
+                "permalink": "https://tiktok.com/@acme/video/1",
+                "attachments": [{"id": "att_1", "type": "cover", "status": "processed", "content_type": "image/jpeg", "url": "https://cdn.test/c.jpg"}]
+            }],
+            "thread": [{
+                "id": "t1",
+                "body": "second",
+                "media": [],
+                "platforms": [{"platform": "twitter", "profile_id": "prof_2", "profile_name": "X", "status": "failed", "permalink": null}]
+            }]
+        }
+        """);
+
+        var post = await client.Posts.GetAsync("post-1");
+
+        Assert.False(post.Draft);
+        Assert.Equal("postproxy", post.Source);
+        var result = post.Platforms![0];
+        Assert.Equal("prof_1", result.ProfileId);
+        Assert.Equal("Acme", result.ProfileName);
+        Assert.Equal("https://tiktok.com/@acme/video/1", result.Permalink);
+        Assert.Equal("cover", result.Attachments![0].Type);
+        Assert.Equal(PlatformPostStatus.Failed, post.Thread![0].Platforms![0].Status);
+    }
 }

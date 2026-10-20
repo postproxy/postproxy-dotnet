@@ -183,4 +183,147 @@ public class WebhookEventsTests
     {
         Assert.Throws<WebhookParseException>(() => WebhookEvents.Parse("not json{"));
     }
+
+    [Theory]
+    [InlineData("platform_post.edited", WebhookEventType.PlatformPostEdited)]
+    [InlineData("platform_post.edit_failed", WebhookEventType.PlatformPostEditFailed)]
+    [InlineData("profile.placements_synced", WebhookEventType.ProfilePlacementsSynced)]
+    [InlineData("placement.orphaned", WebhookEventType.PlacementOrphaned)]
+    [InlineData("placement.restored", WebhookEventType.PlacementRestored)]
+    [InlineData("comment.failed", WebhookEventType.CommentFailed)]
+    [InlineData("comment.failed_waiting_for_retry", WebhookEventType.CommentFailedWaitingForRetry)]
+    [InlineData("comment.delivery_unconfirmed", WebhookEventType.CommentDeliveryUnconfirmed)]
+    [InlineData("comment.edited", WebhookEventType.CommentEdited)]
+    [InlineData("comment.edit_failed", WebhookEventType.CommentEditFailed)]
+    [InlineData("profile_comment.failed", WebhookEventType.ProfileCommentFailed)]
+    [InlineData("profile_comment.failed_waiting_for_retry", WebhookEventType.ProfileCommentFailedWaitingForRetry)]
+    [InlineData("profile_comment.deleted", WebhookEventType.ProfileCommentDeleted)]
+    [InlineData("referral.received", WebhookEventType.ReferralReceived)]
+    [InlineData("message_template.status_updated", WebhookEventType.MessageTemplateStatusUpdated)]
+    [InlineData("message_template.category_updated", WebhookEventType.MessageTemplateCategoryUpdated)]
+    [InlineData("placement.name_status_updated", WebhookEventType.PlacementNameStatusUpdated)]
+    [InlineData("placement.quality_updated", WebhookEventType.PlacementQualityUpdated)]
+    [InlineData("whatsapp.automatic_event", WebhookEventType.WhatsAppAutomaticEvent)]
+    public void ParsesEventTypesAddedIn114(string type, WebhookEventType expected)
+    {
+        var ev = WebhookEvents.Parse(Envelope(type, new { id = "x" }));
+
+        Assert.Equal(expected, ev.Type);
+    }
+
+    [Fact]
+    public void ParsesMessageTemplateStatusUpdated()
+    {
+        var ev = WebhookEvents.Parse(Envelope("message_template.status_updated", new
+        {
+            id = "tpl_1",
+            external_id = "998877",
+            profile_id = "prof_wa",
+            platform = "whatsapp",
+            name = "order_update",
+            language = "en_US",
+            category = "UTILITY",
+            status = "APPROVED",
+            rejected_reason = (string?)null,
+            quality_score = (string?)null,
+        }));
+
+        var data = WebhookEvents.AsMessageTemplateEvent(ev);
+        Assert.Equal("APPROVED", data.Status);
+        Assert.Equal(Platform.WhatsApp, data.Platform);
+    }
+
+    [Fact]
+    public void ParsesPlacementQualityUpdated_KeepsExtraFields()
+    {
+        var ev = WebhookEvents.Parse(Envelope("placement.quality_updated", new
+        {
+            id = "pn_1",
+            name = "Acme",
+            platform = "whatsapp",
+            profile_group_id = "pg_1",
+            profile_id = "prof_wa",
+            profile_name = "Acme WABA",
+            metadata = new { },
+            @event = "UPGRADE",
+            current_limit = "TIER_10K",
+        }));
+
+        var data = WebhookEvents.AsPlacementEvent(ev);
+        Assert.Equal("pn_1", data.Id);
+        Assert.Equal("UPGRADE", data.Extra!["event"].GetString());
+        Assert.Equal("TIER_10K", data.Extra["current_limit"].GetString());
+    }
+
+    [Fact]
+    public void ParsesPlacementsSynced()
+    {
+        var ev = WebhookEvents.Parse(Envelope("profile.placements_synced", new
+        {
+            id = "prof_1",
+            name = "Acme",
+            platform = "facebook",
+            profile_group_id = "pg_1",
+            status = "active",
+            uid = "u1",
+            platform_id = "fb_1",
+            username = (string?)null,
+            placements_sync_status = "synced",
+            placements = new[] { new { id = "page_1", name = "Acme Page", platform = "facebook", profile_id = "prof_1" } },
+        }));
+
+        var data = WebhookEvents.AsPlacementsSynced(ev);
+        Assert.Equal("synced", data.PlacementsSyncStatus);
+        Assert.Equal("page_1", data.Placements[0].Id);
+        Assert.Equal("fb_1", data.PlatformId);
+    }
+
+    [Fact]
+    public void ParsesReferralReceived()
+    {
+        var ev = WebhookEvents.Parse(Envelope("referral.received", new
+        {
+            chat = new { id = "chat_1", profile_id = "prof_wa", platform = "whatsapp", group = false, participant_external_id = "1555" },
+            source = "ADS",
+            ctwa_clid = "clid_1",
+        }));
+
+        var data = WebhookEvents.AsReferralEvent(ev);
+        Assert.Equal("chat_1", data.Chat.Id);
+        Assert.Equal("clid_1", data.CtwaClid);
+    }
+
+    [Fact]
+    public void ParsesWhatsAppAutomaticEvent()
+    {
+        var ev = WebhookEvents.Parse(Envelope("whatsapp.automatic_event", new
+        {
+            profile_id = "prof_wa",
+            chat_id = "chat_1",
+            event_name = "Purchase",
+            custom_data = new { currency = "USD", value = 24.5 },
+        }));
+
+        var data = WebhookEvents.AsWhatsAppAutomaticEvent(ev);
+        Assert.Equal("Purchase", data.EventName);
+        Assert.Equal("USD", data.CustomData!["currency"].GetString());
+    }
+
+    [Fact]
+    public void ParsesCommentEditFailed()
+    {
+        var ev = WebhookEvents.Parse(Envelope("comment.edit_failed", new
+        {
+            id = "c_1",
+            post_id = "p_1",
+            platform = "facebook",
+            profile_id = "prof_1",
+            error = "Comment no longer exists",
+            created_at = "2026-10-01T00:00:00Z",
+        }));
+
+        var data = WebhookEvents.AsCommentCreated(ev);
+        Assert.Equal("prof_1", data.ProfileId);
+        Assert.Equal("Comment no longer exists", data.Error);
+    }
 }

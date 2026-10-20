@@ -61,3 +61,10 @@ public record ConnectionResponse
     [JsonPropertyName("success")]
     public bool Success { get; init; }
 }
+
+/// <summary>A raw (non-JSON) response body, e.g. a downloaded media file.</summary>
+public record BinaryResponse
+{
+    public required byte[] Data { get; init; }
+    public string? ContentType { get; init; }
+}

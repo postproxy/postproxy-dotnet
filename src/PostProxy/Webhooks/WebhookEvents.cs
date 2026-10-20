@@ -90,7 +90,36 @@ public record ProfileEventData
     [JsonPropertyName("profile_group_id")] public required string ProfileGroupId { get; init; }
     [JsonPropertyName("status")] public string? Status { get; init; }
     [JsonPropertyName("uid")] public required string Uid { get; init; }
+    [JsonPropertyName("platform_id")] public string? PlatformId { get; init; }
     [JsonPropertyName("username")] public string? Username { get; init; }
+    /// <summary>On <c>profile.disconnected</c>: <c>user</c> or <c>automated</c>.</summary>
+    [JsonPropertyName("origin")] public string? Origin { get; init; }
+}
+
+/// <summary>
+/// Payload of the <c>placement.*</c> events. <c>placement.name_status_updated</c> adds
+/// <c>decision</c>, <c>requested_name</c>, <c>rejection_reason</c>;
+/// <c>placement.quality_updated</c> adds <c>event</c>, <c>current_limit</c>,
+/// <c>old_limit</c> — read those from <see cref="Extra"/>.
+/// </summary>
+public record PlacementEventData
+{
+    /// <summary>The placement's id on the platform (page id, phone number id, ...).</summary>
+    [JsonPropertyName("id")] public required string Id { get; init; }
+    [JsonPropertyName("name")] public string? Name { get; init; }
+    [JsonPropertyName("platform")] public Platform Platform { get; init; }
+    [JsonPropertyName("profile_group_id")] public string? ProfileGroupId { get; init; }
+    [JsonPropertyName("profile_id")] public string? ProfileId { get; init; }
+    [JsonPropertyName("profile_name")] public string? ProfileName { get; init; }
+    [JsonPropertyName("metadata")] public IReadOnlyDictionary<string, JsonElement>? Metadata { get; init; }
+    [JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; init; }
+}
+
+/// <summary>Payload of <c>profile.placements_synced</c>.</summary>
+public record PlacementsSyncedData : ProfileEventData
+{
+    [JsonPropertyName("placements_sync_status")] public string? PlacementsSyncStatus { get; init; }
+    [JsonPropertyName("placements")] public IReadOnlyList<PlacementEventData> Placements { get; init; } = Array.Empty<PlacementEventData>();
 }
 
 public record ProfileStatsData
@@ -131,6 +160,10 @@ public record CommentCreatedData
     [JsonPropertyName("is_hidden")] public bool IsHidden { get; init; }
     [JsonPropertyName("permalink")] public string? Permalink { get; init; }
     [JsonPropertyName("platform_data")] public IReadOnlyDictionary<string, JsonElement>? PlatformData { get; init; }
+    [JsonPropertyName("profile_id")] public string? ProfileId { get; init; }
+    [JsonPropertyName("error")] public string? Error { get; init; }
+    [JsonPropertyName("error_details")] public ErrorDetails? ErrorDetails { get; init; }
+    [JsonPropertyName("external_edited_at")] public DateTimeOffset? ExternalEditedAt { get; init; }
     [JsonPropertyName("posted_at")] public DateTimeOffset? PostedAt { get; init; }
     [JsonPropertyName("created_at")] public DateTimeOffset CreatedAt { get; init; }
 }
@@ -163,8 +196,65 @@ public record ProfileCommentCreatedData
     [JsonPropertyName("author_username")] public string? AuthorUsername { get; init; }
     [JsonPropertyName("author_avatar_url")] public string? AuthorAvatarUrl { get; init; }
     [JsonPropertyName("platform_data")] public IReadOnlyDictionary<string, JsonElement>? PlatformData { get; init; }
+    [JsonPropertyName("error")] public string? Error { get; init; }
+    [JsonPropertyName("error_details")] public ErrorDetails? ErrorDetails { get; init; }
+    [JsonPropertyName("permalink")] public string? Permalink { get; init; }
     [JsonPropertyName("posted_at")] public DateTimeOffset? PostedAt { get; init; }
     [JsonPropertyName("created_at")] public DateTimeOffset CreatedAt { get; init; }
+}
+
+/// <summary>The chat carried by <c>referral.received</c>.</summary>
+public record WebhookChatData
+{
+    [JsonPropertyName("id")] public required string Id { get; init; }
+    [JsonPropertyName("profile_id")] public string? ProfileId { get; init; }
+    [JsonPropertyName("platform")] public Platform Platform { get; init; }
+    [JsonPropertyName("external_placement_id")] public string? ExternalPlacementId { get; init; }
+    [JsonPropertyName("group")] public bool Group { get; init; }
+    [JsonPropertyName("participant_external_id")] public string? ParticipantExternalId { get; init; }
+    [JsonPropertyName("participant_username")] public string? ParticipantUsername { get; init; }
+    [JsonPropertyName("participant_name")] public string? ParticipantName { get; init; }
+    [JsonPropertyName("last_inbound_at")] public DateTimeOffset? LastInboundAt { get; init; }
+    [JsonPropertyName("last_outbound_at")] public DateTimeOffset? LastOutboundAt { get; init; }
+    [JsonPropertyName("last_message_at")] public DateTimeOffset? LastMessageAt { get; init; }
+}
+
+public record ReferralEventData
+{
+    [JsonPropertyName("chat")] public required WebhookChatData Chat { get; init; }
+    [JsonPropertyName("ref")] public string? Ref { get; init; }
+    [JsonPropertyName("source")] public string? Source { get; init; }
+    [JsonPropertyName("type")] public string? Type { get; init; }
+    /// <summary>WhatsApp click-to-WhatsApp ad click id.</summary>
+    [JsonPropertyName("ctwa_clid")] public string? CtwaClid { get; init; }
+    [JsonPropertyName("occurred_at")] public DateTimeOffset? OccurredAt { get; init; }
+}
+
+/// <summary>Payload of the <c>message_template.*</c> events.</summary>
+public record MessageTemplateEventData
+{
+    [JsonPropertyName("id")] public required string Id { get; init; }
+    [JsonPropertyName("external_id")] public string? ExternalId { get; init; }
+    [JsonPropertyName("profile_id")] public string? ProfileId { get; init; }
+    [JsonPropertyName("platform")] public Platform Platform { get; init; }
+    [JsonPropertyName("name")] public string? Name { get; init; }
+    [JsonPropertyName("language")] public string? Language { get; init; }
+    [JsonPropertyName("category")] public string? Category { get; init; }
+    [JsonPropertyName("status")] public string? Status { get; init; }
+    [JsonPropertyName("rejected_reason")] public string? RejectedReason { get; init; }
+    [JsonPropertyName("quality_score")] public string? QualityScore { get; init; }
+}
+
+public record WhatsAppAutomaticEventData
+{
+    [JsonPropertyName("profile_id")] public string? ProfileId { get; init; }
+    [JsonPropertyName("chat_id")] public string? ChatId { get; init; }
+    [JsonPropertyName("participant_external_id")] public string? ParticipantExternalId { get; init; }
+    [JsonPropertyName("external_message_id")] public string? ExternalMessageId { get; init; }
+    [JsonPropertyName("event_name")] public string? EventName { get; init; }
+    [JsonPropertyName("ctwa_clid")] public string? CtwaClid { get; init; }
+    [JsonPropertyName("custom_data")] public IReadOnlyDictionary<string, JsonElement>? CustomData { get; init; }
+    [JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; init; }
 }
 
 public static class WebhookEvents
@@ -198,6 +288,11 @@ public static class WebhookEvents
     public static MessageEventData AsMessageEvent(WebhookEvent ev) => Decode<MessageEventData>(ev);
     public static ReactionEventData AsReactionEvent(WebhookEvent ev) => Decode<ReactionEventData>(ev);
     public static ProfileCommentCreatedData AsProfileCommentCreated(WebhookEvent ev) => Decode<ProfileCommentCreatedData>(ev);
+    public static PlacementEventData AsPlacementEvent(WebhookEvent ev) => Decode<PlacementEventData>(ev);
+    public static PlacementsSyncedData AsPlacementsSynced(WebhookEvent ev) => Decode<PlacementsSyncedData>(ev);
+    public static ReferralEventData AsReferralEvent(WebhookEvent ev) => Decode<ReferralEventData>(ev);
+    public static MessageTemplateEventData AsMessageTemplateEvent(WebhookEvent ev) => Decode<MessageTemplateEventData>(ev);
+    public static WhatsAppAutomaticEventData AsWhatsAppAutomaticEvent(WebhookEvent ev) => Decode<WhatsAppAutomaticEventData>(ev);
 
     private static T Decode<T>(WebhookEvent ev) where T : class
     {

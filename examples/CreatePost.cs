@@ -67,6 +67,19 @@ var pollPost = await client.Posts.CreateAsync(new CreatePostParams
 });
 Console.WriteLine($"Poll post: {pollPost.Id}");
 
+// TikTok video with a custom cover uploaded from disk (a base64 data URL works too)
+var coverPost = await client.Posts.CreateAsync(new CreatePostParams
+{
+    Body = "Behind the scenes",
+    Profiles = ["tiktok"],
+    Media = ["https://example.com/bts.mp4"],
+    Platforms = new PlatformParams
+    {
+        TikTok = new TikTokParams { Format = TikTokFormat.Video, CoverFile = "./cover.jpg" },
+    },
+});
+Console.WriteLine($"Cover post: {coverPost.Id}");
+
 // Create a scheduled post
 var scheduledPost = await client.Posts.CreateAsync(new CreatePostParams
 {

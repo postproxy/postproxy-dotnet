@@ -33,7 +33,8 @@ public class CommentsResource
     /// back as their own entries linked by <c>ParentExternalId</c>, so
     /// <c>Total</c> counts every comment. <paramref name="profiles"/> takes
     /// profile IDs or network names, mixed. Every filter is optional; unknown or
-    /// out-of-scope IDs are ignored rather than erroring.
+    /// out-of-scope IDs are ignored rather than erroring. <paramref name="placementId"/>
+    /// narrows to one page / organization.
     /// </summary>
     public Task<PaginatedResponse<BulkComment>> ListAllAsync(
         IEnumerable<string>? postIds = null,
@@ -43,11 +44,13 @@ public class CommentsResource
         int? page = null,
         int? perPage = null,
         string? profileGroupId = null,
+        string? placementId = null,
         CancellationToken cancellationToken = default)
     {
         var query = new Dictionary<string, string>();
         if (postIds is not null) query["post_ids"] = string.Join(",", postIds);
         if (profiles is not null) query["profiles"] = string.Join(",", profiles);
+        if (placementId is not null) query["placement_id"] = placementId;
         if (from is not null) query["from"] = from;
         if (to is not null) query["to"] = to;
         if (page is not null) query["page"] = page.Value.ToString();
@@ -56,6 +59,17 @@ public class CommentsResource
 
         return _client.GetAsync<PaginatedResponse<BulkComment>>("/api/comments", query, cancellationToken);
     }
+
+    public Task<PaginatedResponse<BulkComment>> ListAllAsync(
+        IEnumerable<string>? postIds,
+        IEnumerable<string>? profiles,
+        string? from,
+        string? to,
+        int? page,
+        int? perPage,
+        string? profileGroupId,
+        CancellationToken cancellationToken) =>
+        ListAllAsync(postIds, profiles, from, to, page, perPage, profileGroupId, null, cancellationToken);
 
     public Task<Comment> GetAsync(string postId, string commentId, string profileId, CancellationToken cancellationToken = default)
     {
@@ -71,6 +85,18 @@ public class CommentsResource
         if (parentId is not null) body["parent_id"] = parentId;
 
         return _client.PostAsync<Comment>($"/api/posts/{Uri.EscapeDataString(postId)}/comments", body, query, cancellationToken, idempotencyKey);
+    }
+
+    /// <summary>
+    /// Edits a comment you published. Facebook and YouTube only. Runs in the
+    /// background — the outcome arrives as <c>comment.edited</c> / <c>comment.edit_failed</c>.
+    /// </summary>
+    public Task<AcceptedResponse> EditAsync(string postId, string commentId, string profileId, string text, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+    {
+        var query = new Dictionary<string, string> { ["profile_id"] = profileId };
+        var body = new Dictionary<string, object> { ["body"] = text };
+
+        return _client.PatchAsync<AcceptedResponse>($"/api/posts/{Uri.EscapeDataString(postId)}/comments/{Uri.EscapeDataString(commentId)}", body, query, cancellationToken, idempotencyKey);
     }
 
     public Task<AcceptedResponse> DeleteAsync(string postId, string commentId, string profileId, string? idempotencyKey = null, CancellationToken cancellationToken = default)
@@ -92,14 +118,49 @@ public class CommentsResource
     public Task<AcceptedResponse> UnlikeAsync(string postId, string commentId, string profileId, string? idempotencyKey = null, CancellationToken cancellationToken = default) =>
         CommentActionAsync(postId, commentId, profileId, "unlike", idempotencyKey, cancellationToken);
 
-    public Task<Message> PrivateReplyAsync(string postId, string commentId, string profileId, string text, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+    /// <summary>Pins a comment. TikTok only.</summary>
+    public Task<AcceptedResponse> PinAsync(string postId, string commentId, string profileId, string? idempotencyKey = null, CancellationToken cancellationToken = default) =>
+        CommentActionAsync(postId, commentId, profileId, "pin", idempotencyKey, cancellationToken);
+
+    /// <summary>Unpins a comment. TikTok only.</summary>
+    public Task<AcceptedResponse> UnpinAsync(string postId, string commentId, string profileId, string? idempotencyKey = null, CancellationToken cancellationToken = default) =>
+        CommentActionAsync(postId, commentId, profileId, "unpin", idempotencyKey, cancellationToken);
+
+    /// <summary>
+    /// Sends a direct message in reply to a comment's author (Instagram/Facebook).
+    /// Returns a <see cref="Message"/>, not a comment. One private reply per comment,
+    /// within 7 days of it.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="quickReplies"/>, <paramref name="buttons"/>, <paramref name="card"/>
+    /// and <paramref name="elements"/> work as in <c>Messages.SendAsync</c>;
+    /// <paramref name="text"/> may be empty when sending <paramref name="elements"/>.
+    /// </remarks>
+    public Task<Message> PrivateReplyAsync(
+        string postId,
+        string commentId,
+        string profileId,
+        string text,
+        string? idempotencyKey = null,
+        IReadOnlyList<QuickReply>? quickReplies = null,
+        IReadOnlyList<MessageButton>? buttons = null,
+        MessageCard? card = null,
+        IReadOnlyList<MessageElement>? elements = null,
+        CancellationToken cancellationToken = default)
     {
         var query = new Dictionary<string, string> { ["profile_id"] = profileId };
         var body = new Dictionary<string, object> { ["text"] = text };
+        if (quickReplies is not null) body["quick_replies"] = quickReplies;
+        if (buttons is not null) body["buttons"] = buttons;
+        if (card is not null) body["card"] = card;
+        if (elements is not null) body["elements"] = elements;
         var path = $"/api/posts/{Uri.EscapeDataString(postId)}/comments/{Uri.EscapeDataString(commentId)}/private_reply";
 
         return _client.PostAsync<Message>(path, body, query, cancellationToken, idempotencyKey);
     }
+
+    public Task<Message> PrivateReplyAsync(string postId, string commentId, string profileId, string text, string? idempotencyKey, CancellationToken cancellationToken) =>
+        PrivateReplyAsync(postId, commentId, profileId, text, idempotencyKey, null, null, null, null, cancellationToken);
 
     private Task<AcceptedResponse> CommentActionAsync(string postId, string commentId, string profileId, string action, string? idempotencyKey, CancellationToken cancellationToken)
     {

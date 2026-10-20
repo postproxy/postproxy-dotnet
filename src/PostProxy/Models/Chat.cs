@@ -14,6 +14,14 @@ public record Chat
     [JsonPropertyName("platform")]
     public Platform Platform { get; init; }
 
+    /// <summary>The page / phone number the chat runs through.</summary>
+    [JsonPropertyName("external_placement_id")]
+    public string? ExternalPlacementId { get; init; }
+
+    /// <summary>True for a WhatsApp group chat.</summary>
+    [JsonPropertyName("group")]
+    public bool Group { get; init; }
+
     [JsonPropertyName("participant_external_id")]
     public required string ParticipantExternalId { get; init; }
 
@@ -43,6 +51,13 @@ public record Chat
 
     [JsonPropertyName("archived")]
     public bool? Archived { get; init; }
+
+    /// <summary>
+    /// WhatsApp only: whether the 24-hour customer service window is open. When
+    /// it's closed only a template can be sent.
+    /// </summary>
+    [JsonPropertyName("within_messaging_window")]
+    public bool? WithinMessagingWindow { get; init; }
 
     [JsonPropertyName("created_at")]
     public DateTimeOffset? CreatedAt { get; init; }

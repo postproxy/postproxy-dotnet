@@ -158,7 +158,16 @@ var post = await client.Posts.CreateAsync(new CreatePostParams
 {
     Body = "Photo post",
     Profiles = ["profile-id"],
-    Media = ["https://example.com/image.jpg"],
+    Media = ["https://example.com/image.jpg", "https://example.com/second.jpg"],
+});
+
+// Publish even if an identical post was just submitted (skips the 409;
+// sends X-Skip-Duplicate-Check)
+var post = await client.Posts.CreateAsync(new CreatePostParams
+{
+    Body = "Same text, on purpose",
+    Profiles = ["profile-id"],
+    SkipDuplicateCheck = true,
 });
 
 // Create with local file uploads
@@ -188,6 +197,50 @@ var post = await client.Posts.CreateAsync(new CreatePostParams
     },
 });
 
+// Custom cover from a local file — uploaded with the post (the request switches
+// to multipart even without MediaFiles). Instagram, TikTok, YouTube, Pinterest.
+// A base64 data URL ("data:image/jpeg;base64,...") is sent as-is instead.
+var post = await client.Posts.CreateAsync(new CreatePostParams
+{
+    Body = "Behind the scenes",
+    Profiles = ["tt-profile"],
+    Media = ["https://example.com/bts.mp4"],
+    Platforms = new PlatformParams
+    {
+        TikTok = new TikTokParams { Format = TikTokFormat.Video, CoverFile = "./cover.jpg" },
+    },
+});
+
+// Alt text — one string for every item, or one per media item in order
+var post = await client.Posts.CreateAsync(new CreatePostParams
+{
+    Body = "Two photos",
+    Profiles = ["ig-profile", "li-profile"],
+    Media = ["https://example.com/a.jpg", "https://example.com/b.jpg"],
+    Platforms = new PlatformParams
+    {
+        Instagram = new InstagramParams { AltText = new[] { "A red mug", "A blue mug" }, MadeWithAi = false },
+        LinkedIn = new LinkedInParams { AltText = "Two mugs" },
+    },
+});
+
+// LinkedIn poll
+var post = await client.Posts.CreateAsync(new CreatePostParams
+{
+    Body = "Settle this for us",
+    Profiles = ["li-profile"],
+    Platforms = new PlatformParams
+    {
+        LinkedIn = new LinkedInParams
+        {
+            Format = LinkedInFormat.Poll,
+            PollQuestion = "Tabs or spaces?",
+            PollOptions = ["Tabs", "Spaces"],
+            PollDurationDays = 7,
+        },
+    },
+});
+
 // Schedule a post
 var post = await client.Posts.CreateAsync(new CreatePostParams
 {
@@ -210,11 +263,25 @@ var post = await client.Posts.CreateAsync(new CreatePostParams
 foreach (var child in post.Thread!)
     Console.WriteLine($"{child.Id}: {child.Body}");
 
-// Update a post (only drafts or scheduled posts)
+// Update a draft or scheduled post
 var post = await client.Posts.UpdateAsync("post-id", new UpdatePostParams
 {
     Body = "Updated content!",
 });
+
+// Edit a published post. Only Body, YouTube.Title, Pinterest.Title and
+// Pinterest.DestinationLink can change; the edit is pushed to the platforms in
+// the background (platform_post.edited / platform_post.edit_failed webhooks).
+var post = await client.Posts.UpdateAsync("published-post-id", new UpdatePostParams
+{
+    Body = "Launch day! (now with the right link)",
+    Platforms = new PlatformParams
+    {
+        Pinterest = new PinterestParams { DestinationLink = "https://example.com/launch" },
+    },
+});
+foreach (var p in post.Platforms ?? [])
+    Console.WriteLine($"{p.Platform} ({p.ProfileName}): {p.Status} {p.Permalink}");
 
 // Update platform params only
 var post = await client.Posts.UpdateAsync("post-id", new UpdatePostParams
@@ -400,9 +467,23 @@ var isValid = WebhookSignature.Verify(
 
 Subscribe to any of these events (or pass `["*"]` for all):
 
-`post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.insights`, `profile.connected`, `profile.disconnected`, `profile.stats`, `media.failed`, `comment.created`, `profile_comment.created`, `message.received`, `message.sent`, `message.delivered`, `message.read`, `message.edited`, `message.deleted`, `message.failed_waiting_for_retry`, `message.failed`, `reaction.received`.
+`post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.edited`, `platform_post.edit_failed`, `platform_post.insights`, `profile.connected`, `profile.disconnected`, `profile.stats`, `profile.placements_synced`, `placement.orphaned`, `placement.restored`, `media.failed`, `comment.created`, `comment.failed`, `comment.failed_waiting_for_retry`, `comment.delivery_unconfirmed`, `comment.edited`, `comment.edit_failed`, `profile_comment.created`, `profile_comment.failed`, `profile_comment.failed_waiting_for_retry`, `profile_comment.deleted`, `message.received`, `message.sent`, `message.delivered`, `message.read`, `message.edited`, `message.deleted`, `message.failed_waiting_for_retry`, `message.failed`, `reaction.received`, `referral.received`, `message_template.status_updated`, `message_template.category_updated`, `placement.name_status_updated`, `placement.quality_updated`, `whatsapp.automatic_event`.
 
-`WebhookEvents.Parse` validates the envelope; `As*` helpers decode `Data` into a typed payload. The eight `message.*` events decode to `MessageEventData` (`AsMessageEvent`), `reaction.received` to `ReactionEventData` (`AsReactionEvent`), and `profile_comment.created` to `ProfileCommentCreatedData` (`AsProfileCommentCreated`).
+`WebhookEvents.Parse` validates the envelope; `As*` helpers decode `Data` into a typed payload:
+
+| Events | Payload | Helper |
+|---|---|---|
+| `platform_post.*` (incl. `edited`, `edit_failed`) | `PlatformPostData` | `AsPlatformPost` |
+| `profile.connected`, `profile.disconnected` | `ProfileEventData` | `AsProfileEvent` |
+| `profile.placements_synced` | `PlacementsSyncedData` | `AsPlacementsSynced` |
+| `placement.*` | `PlacementEventData` (event-specific fields in `Extra`) | `AsPlacementEvent` |
+| `comment.*` | `CommentCreatedData` | `AsCommentCreated` |
+| `profile_comment.*` | `ProfileCommentCreatedData` | `AsProfileCommentCreated` |
+| the eight `message.*` events | `MessageEventData` | `AsMessageEvent` |
+| `reaction.received` | `ReactionEventData` | `AsReactionEvent` |
+| `referral.received` | `ReferralEventData` | `AsReferralEvent` |
+| `message_template.*` | `MessageTemplateEventData` | `AsMessageTemplateEvent` |
+| `whatsapp.automatic_event` | `WhatsAppAutomaticEventData` | `AsWhatsAppAutomaticEvent` |
 
 ```csharp
 using PostProxy.Models;
@@ -434,6 +515,14 @@ switch (ev.Type)
     case WebhookEventType.ProfileCommentCreated:
         var pc = WebhookEvents.AsProfileCommentCreated(ev);
         Console.WriteLine($"Review by {pc.AuthorUsername}: {pc.Body}");
+        break;
+    case WebhookEventType.PlatformPostEditFailed:
+        var ef = WebhookEvents.AsPlatformPost(ev);
+        Console.WriteLine($"Edit failed on {ef.Platform}: {ef.Error}");
+        break;
+    case WebhookEventType.MessageTemplateStatusUpdated:
+        var t = WebhookEvents.AsMessageTemplateEvent(ev);
+        Console.WriteLine($"Template {t.Name}: {t.Status}");
         break;
 }
 ```
@@ -480,15 +569,28 @@ await client.Comments.UnhideAsync("post-id", "comment-id", "profile-id");
 await client.Comments.LikeAsync("post-id", "comment-id", "profile-id");
 await client.Comments.UnlikeAsync("post-id", "comment-id", "profile-id");
 
+// Edit a comment you published (Facebook, YouTube). Runs in the background —
+// the outcome arrives as comment.edited / comment.edit_failed.
+await client.Comments.EditAsync("post-id", "comment-id", "profile-id", "Fixed a typo");
+
+// Pin / unpin a comment (TikTok)
+await client.Comments.PinAsync("post-id", "comment-id", "profile-id");
+await client.Comments.UnpinAsync("post-id", "comment-id", "profile-id");
+
 // Comments may carry media attachments and author metadata
 foreach (var attachment in comment.Attachments ?? [])
     Console.WriteLine($"{attachment.Type}: {attachment.Url} ({attachment.Status})");
 if (comment.Metadata is not null)
     Console.WriteLine($"author signals: {comment.Metadata.Count} fields");
 
-// Privately reply to a comment — returns a direct Message (not a Comment)
+// Privately reply to a comment — returns a direct Message (not a Comment).
+// One private reply per comment, within 7 days of it.
 var dm = await client.Comments.PrivateReplyAsync("post-id", "comment-id", "profile-id", "DM-ing you the details!");
 Console.WriteLine($"Sent DM: {dm.Id}");
+
+// Private replies take QuickReplies, Buttons, Card and Elements as in Messages.SendAsync
+await client.Comments.PrivateReplyAsync("post-id", "comment-id", "profile-id", "Here you go:",
+    buttons: [MessageButton.WebUrl("Shop", "https://shop.example.com")]);
 ```
 
 #### Comments across posts
@@ -507,6 +609,7 @@ var all = await client.Comments.ListAllAsync(
     postIds: ["post-1", "post-2"],        // omit for every post in scope
     from: "2026-03-25",
     perPage: 50);                         // max 100
+// placementId: "page-id" narrows to one page / organization
 
 foreach (var c in all.Data)
 {
@@ -528,7 +631,7 @@ Results are ordered newest first by receipt time.
 
 ### Direct Messages
 
-Manage private conversations (Chats and Messages) across Facebook, Instagram, Telegram, and Bluesky.
+Manage private conversations (Chats and Messages) across Facebook, Instagram, Telegram, Bluesky, and WhatsApp.
 
 ```csharp
 using PostProxy.Models;
@@ -552,6 +655,11 @@ var chat = await client.Chats.GetAsync("chat-id");
 // Archive / unarchive a chat (Bluesky)
 await client.Chats.ArchiveAsync("chat-id");
 await client.Chats.UnarchiveAsync("chat-id");
+
+// Read receipt and typing indicator (typing: Facebook, Instagram, WhatsApp)
+await client.Chats.MarkReadAsync("chat-id");
+await client.Chats.StartTypingAsync("chat-id");
+await client.Chats.StopTypingAsync("chat-id");
 
 // List messages in a chat (filter by direction/status)
 var messages = await client.Messages.ListAsync("chat-id", new ListMessagesParams
@@ -655,6 +763,200 @@ webhook payload. `TappedAction` is derived rather than stored, so it also resolv
 recorded before Postproxy exposed it, including Instagram ice-breaker taps and Telegram
 callback queries (`TappedActionKind.CallbackQuery`). A tap also opens the 24h window.
 
+#### Carousels (Facebook & Instagram)
+
+`Elements` sends a horizontally scrolling carousel of up to 10 cards. Each card needs a
+`Title` (80 characters or fewer) plus at least one other field, and takes up to 3 buttons.
+It can't be combined with `Body`, `Buttons` or `Card`.
+
+```csharp
+await client.Messages.SendAsync("chat-id", new SendMessageParams
+{
+    Elements =
+    [
+        new MessageElement
+        {
+            Title = "Red sneaker",
+            Subtitle = "$89 — sizes 38-46",
+            ImageUrl = "https://cdn.example.com/red.png",
+            Buttons = [MessageButton.WebUrl("Buy", "https://shop.example.com/red")],
+        },
+        new MessageElement
+        {
+            Title = "Blue sneaker",
+            ImageUrl = "https://cdn.example.com/blue.png",
+            Buttons = [MessageButton.Postback("Notify me", "NOTIFY:blue")],
+        },
+    ],
+});
+```
+
+#### WhatsApp
+
+A WhatsApp chat runs through one of the profile's phone numbers, so `CreateChatParams`
+needs a `PlacementId` (the phone number id from `Profiles.PlacementsAsync`). Outside the
+24-hour customer service window (`Chat.WithinMessagingWindow`) only a template gets
+through. Send exactly one of `Body`, `Media`, `Template`, `Interactive`, `Location` or
+`Contacts`.
+
+```csharp
+var numbers = await client.Profiles.PlacementsAsync("whatsapp-profile-id");
+var chat = await client.Chats.CreateAsync("whatsapp-profile-id", new CreateChatParams
+{
+    ParticipantExternalId = "15551234567",
+    PlacementId = numbers.Data[0].Id,
+});
+
+// Template — by Id, or by Name (+ Language when it exists in several)
+await client.Messages.SendAsync(chat.Id, new SendMessageParams
+{
+    Template = new MessageTemplateInput
+    {
+        Name = "order_shipped",
+        Language = "en_US",
+        Variables = ["Jane", "#1234"],   // header, then body, then URL buttons
+    },
+});
+
+// Inside the window: location, contacts, interactive (Meta's objects, sent as-is)
+await client.Messages.SendAsync(chat.Id, new SendMessageParams
+{
+    Location = new MessageLocation { Latitude = 52.52, Longitude = 13.405, Name = "Pickup point" },
+});
+await client.Messages.SendAsync(chat.Id, new SendMessageParams
+{
+    Interactive = new { type = "button", body = new { text = "Pick one" }, action = new { buttons = new[] { new { type = "reply", reply = new { id = "a", title = "A" } } } } },
+});
+
+// Send options: Category ("utility"), LinkPreview, VoiceNote, Filename
+await client.Messages.SendAsync(chat.Id, new SendMessageParams
+{
+    Media = ["https://files.example.com/invoice.pdf"],
+    Filename = "invoice.pdf",
+});
+```
+
+Inbound WhatsApp messages carry `Location`, `Contacts`, `Interactive` and, for template
+sends, `Template`. Download an inbound attachment with `client.WhatsApp.DownloadMediaAsync`
+(see [WhatsApp numbers](#whatsapp-numbers)).
+
+### WhatsApp templates
+
+Templates live on the WhatsApp Business account (the profile) and are addressed by their
+PostProxy id, Meta's id, or their name — pass `language` with a name that exists in
+several languages.
+
+```csharp
+// Create — Meta reviews it before it can be sent
+var template = await client.WhatsAppTemplates.CreateAsync("profile-id", new CreateWhatsAppTemplateParams
+{
+    Name = "order_shipped",
+    Category = "UTILITY",
+    Language = "en_US",
+    Components = [new { type = "BODY", text = "Hi {{1}}, your order {{2}} has shipped." }],
+});
+Console.WriteLine(template.Status); // PENDING — follow message_template.status_updated
+
+// List (Refresh re-reads from Meta first), get, update, delete
+var approved = await client.WhatsAppTemplates.ListAsync("profile-id", status: "APPROVED", refresh: true);
+var one = await client.WhatsAppTemplates.GetAsync("profile-id", "order_shipped", language: "en_US");
+await client.WhatsAppTemplates.UpdateAsync("profile-id", one.Id,
+    new UpdateWhatsAppTemplateParams { MessageSendTtlSeconds = 3600 });
+await client.WhatsAppTemplates.DeleteAsync("profile-id", "order_shipped"); // every language
+
+// Meta's ready-made template library
+var library = await client.WhatsAppTemplates.LibraryAsync("profile-id", name: "delivery");
+```
+
+### WhatsApp numbers
+
+`client.WhatsApp` administers a profile's phone numbers. `phoneNumberId` is the placement id
+from `Profiles.PlacementsAsync`; dataset and conversion calls are account-level and don't
+take one. Responses are Meta's payloads, returned as `JsonElement`.
+
+```csharp
+var wa = client.WhatsApp;
+
+// Registration and verification
+await wa.GetNumberInfoAsync("profile-id", "pn-id");
+await wa.RequestVerificationCodeAsync("profile-id", "pn-id", method: "SMS", language: "en");
+await wa.VerifyPhoneNumberAsync("profile-id", "pn-id", "123456");
+await wa.RegisterPhoneNumberAsync("profile-id", "pn-id", pin: "000000");
+
+// Business profile, display name, username
+await wa.UpdateBusinessProfileAsync("profile-id", "pn-id", about: "Fast replies", websites: ["https://example.com"]);
+await wa.UpdateBusinessProfilePhotoAsync("profile-id", "pn-id", url: "https://example.com/logo.png");
+await wa.RequestDisplayNameChangeAsync("profile-id", "pn-id", "Acme Coffee"); // placement.name_status_updated
+await wa.SetUsernameAsync("profile-id", "pn-id", "acmecoffee");
+
+// Blocked users
+await wa.BlockUsersAsync("profile-id", "pn-id", ["15557654321"]);
+var blocked = await wa.ListBlockedUsersAsync("profile-id", "pn-id", limit: 50);
+
+// Groups
+var group = await wa.CreateGroupAsync("profile-id", "pn-id", "VIP customers", joinApprovalMode: "approval_required");
+var groupId = group.GetProperty("id").ToString();
+await wa.CreateGroupInviteLinkAsync("profile-id", "pn-id", groupId);
+await wa.ApproveGroupJoinRequestsAsync("profile-id", "pn-id", groupId, ["15551234567"]);
+
+// Conversions for click-to-WhatsApp ads
+await wa.SendConversionEventAsync("profile-id", new WhatsAppConversionEvent
+{
+    EventName = "Purchase",
+    EventId = "order-1234",
+    ChatId = "chat-id",
+    Currency = "USD",
+    Value = 24.5m,
+});
+
+// Download an inbound media file — raw bytes plus content type
+var media = await wa.DownloadMediaAsync("profile-id", "pn-id", attachment.ExternalId!);
+await File.WriteAllBytesAsync("photo.jpg", media.Data);
+```
+
+### Google Business locations
+
+`client.GoogleBusiness` manages a location's own data — hours, attributes, services, menus,
+action links and photos — separate from posting to it. `locationId` is the placement id from
+`Profiles.PlacementsAsync`. Google's payloads are camelCased and passed through untouched in
+both directions (responses are `JsonElement`), so you can PATCH back exactly what you GET.
+Updates take a `fields` list naming the top-level fields to change (Google's update mask).
+
+```csharp
+var gbp = client.GoogleBusiness;
+
+var location = await gbp.GetLocationAsync("profile-id", "location-id", readMask: "title,websiteUri");
+await gbp.UpdateLocationAsync("profile-id", "location-id", ["websiteUri"],
+    new Dictionary<string, object?> { ["websiteUri"] = "https://example.com" });
+
+await gbp.UpdateHoursAsync("profile-id", "location-id",
+    fields: ["regularHours"],
+    regularHours: new
+    {
+        periods = new[] { new { openDay = "MONDAY", openTime = new { hours = 9 }, closeDay = "MONDAY", closeTime = new { hours = 17 } } },
+    });
+
+// Attributes, services, food menus
+var available = await gbp.ListAvailableAttributesAsync("profile-id", "location-id", showAll: true);
+await gbp.UpdateAttributesAsync("profile-id", "location-id",
+    [new { name = "attributes/has_wifi", values = new[] { true } }], attributeMask: ["attributes/has_wifi"]);
+
+// Booking / ordering links
+await gbp.CreatePlaceActionLinkAsync("profile-id", "location-id", "https://book.example.com", "APPOINTMENT", isPreferred: true);
+
+// Photos
+await gbp.CreateMediaAsync("profile-id", "location-id", "https://example.com/storefront.jpg",
+    category: "EXTERIOR", mediaFormat: "PHOTO");
+var media = await gbp.ListMediaAsync("profile-id", "location-id");
+```
+
+All 19 methods: `GetLocationAsync`, `UpdateLocationAsync`, `ListAvailableLocationCategoriesAsync`,
+`UpdateHoursAsync`, `GetAttributesAsync`, `ListAvailableAttributesAsync`, `UpdateAttributesAsync`,
+`GetServiceListAsync`, `UpdateServiceListAsync`, `GetFoodMenusAsync`, `UpdateFoodMenusAsync`,
+`ListPlaceActionLinksAsync`, `ListAvailablePlaceActionTypesAsync`, `CreatePlaceActionLinkAsync`,
+`UpdatePlaceActionLinkAsync`, `DeletePlaceActionLinkAsync`, `ListMediaAsync`, `CreateMediaAsync`,
+`DeleteMediaAsync`.
+
 ### Profile comments (Google Business reviews)
 
 Profile-level comments expose Google Business reviews and replies. Reviews are user-generated — the SDK lets you list/get them and reply to or delete your own replies. Reviews sync twice daily.
@@ -707,6 +1009,24 @@ var placement = await client.Profiles.AssignPlacementToGroupAsync(
     "profile-id", "placement-external-id", "pg-other");
 Console.WriteLine(placement.ProfileGroupId); // "pg-other"
 
+// Move the whole profile (with its placements) to another group
+await client.Profiles.AssignToGroupAsync("profile-id", "pg-other");
+
+// Instagram: whether a DM participant is verified and follows you
+var status = await client.Profiles.GetParticipantStatusAsync("profile-id", "igsid");
+
+// LinkedIn: resolve a company page to the URN used to @-mention it
+var mention = await client.Profiles.ResolveMentionAsync("profile-id", "https://www.linkedin.com/company/acme");
+Console.WriteLine(mention.Urn);
+
+// Instagram reel music (profiles connected via Facebook login) — use with InstagramParams.AudioId
+var audio = await client.Profiles.GetInstagramAvailableAudioAsync("profile-id", InstagramAudioType.Music, "summer");
+
+// Facebook Page about / contact fields
+var page = await client.Profiles.GetFacebookPageAsync("profile-id", "page-id", fields: "about,website");
+await client.Profiles.UpdateFacebookPageAsync("profile-id", "page-id",
+    new Dictionary<string, object?> { ["about"] = "Fresh coffee since 1999" });
+
 // Ice breakers (Instagram DMs): FAQ prompts shown when a user opens a chat
 var iceBreakers = await client.Profiles.GetIceBreakersAsync("profile-id");
 foreach (var ib in iceBreakers.IceBreakers)
@@ -738,6 +1058,16 @@ foreach (var r in stats.Data.Records)
 var bsky = await client.Profiles.GetProfileStatsAsync("prof_bsky_001");
 var last = bsky.Data.Records[^1];
 Console.WriteLine(last.Stats["followersCount"]);
+
+// Per-day series. Publish attributes post metrics to the day the post was
+// published instead of the day they were received.
+var daily = await client.Profiles.GetDailyStatsAsync(
+    "profile-id", from: "2026-09-01", to: "2026-09-30", attribution: DailyStatsAttribution.Publish);
+foreach (var day in daily.Data.Records)
+    Console.WriteLine($"{day.Date}: {day.Metrics["impressions"]}");
+
+// Followers gained / lost per day
+var followers = await client.Profiles.GetFollowerHistoryAsync("profile-id", from: "2026-09-01");
 ```
 
 Every stats record (post stats and profile stats alike) carries `RawStats` alongside the
@@ -813,6 +1143,15 @@ catch (ConflictException e)
 }
 ```
 
+DM history has the same shape: `BackfillChatsAsync(id, from)` starts a chat backfill, and
+`ListChatSyncsAsync` / `GetChatSyncAsync` return `ChatSync` runs (`ChatsSeen`,
+`MessagesImported`, `OldestUpdatedAt`).
+
+```csharp
+var chatSync = await client.Profiles.BackfillChatsAsync("profile-id", "2026-01-01T00:00:00Z");
+var chatRuns = await client.Profiles.ListChatSyncsAsync("profile-id", status: PostSyncStatus.Running);
+```
+
 Posts you already have are skipped, so overlapping backfills are safe. Imported posts
 behave exactly like ones the poll picks up (`source: "imported"`, `post.imported` webhook),
 but a backfill's follow-up work is queued at a lower priority so a deep run can't slow down
@@ -844,10 +1183,28 @@ var conn = await client.ProfileGroups.InitializeConnectionAsync(
     "https://yourapp.com/callback");
 Console.WriteLine(conn.Url); // Redirect the user to this URL
 
+// Pick the flow: Instagram via Facebook login (needed for reel music), or
+// WhatsApp via the Cloud API (Api) / the WhatsApp Business app (BusinessApp).
+// refreshConnection: true re-authorizes an existing profile.
+var wa = await client.ProfileGroups.InitializeConnectionAsync(
+    "pg-id", Platform.WhatsApp, "https://yourapp.com/callback",
+    onboarding: ConnectionOnboarding.BusinessApp);
+
 // BlueSky — app password (synchronous, no OAuth)
 var bsky = await client.ProfileGroups.ConnectBlueskyAsync(
     "pg-id", "yourname.bsky.social", "xxxx-xxxx-xxxx-xxxx");
 Console.WriteLine(bsky.Profile.Id);
+
+// Placements across the whole account (account-wide API key). When a placement
+// is reachable through several profiles, choose which one is active.
+var all = await client.Placements.ListAsync(perPage: 50);
+await client.Placements.SetActiveProfileAsync(all.Data[0].Id, "profile-id");
+
+// Profile-group-scoped API keys (account-wide API key). Token is shown only once.
+var key = await client.ApiKeys.CreateAsync("CI", "pg-id");
+Console.WriteLine(key.Token);
+var keys = await client.ApiKeys.ListAsync();
+await client.ApiKeys.DeleteAsync(key.Id);
 
 // Telegram — bring-your-own-bot. Channels populate asynchronously; poll
 // placements until non-empty.
@@ -892,11 +1249,18 @@ Exception hierarchy:
 | `PostProxyException` | Base class |
 | `AuthenticationException` | 401 |
 | `BadRequestException` | 400 |
+| `ForbiddenException` | 403 — account canceled or past due, or the platform refused the action |
 | `NotFoundException` | 404 |
 | `ConflictException` | 409 — duplicate submission (`Response["duplicate_post_id"]`), a backfill already running (`Response["profile_sync_id"]`), or an in-flight `Idempotency-Key` |
 | `ValidationException` | 422 |
+| `RateLimitException` | 429 — `RetryAfter` holds the seconds from the `Retry-After` header (or null) |
 
-A `429` (posting rate limit reached) surfaces as the base `PostProxyException`.
+```csharp
+catch (RateLimitException e) when (e.RetryAfter is int seconds)
+{
+    await Task.Delay(TimeSpan.FromSeconds(seconds));
+}
+```
 
 ## Types
 
@@ -911,15 +1275,18 @@ Key types:
 
 | Type | Fields |
 |---|---|
-| `Post` | Id, Body, Status, ScheduledAt, CreatedAt, Media, Thread, Platforms, QueueId, QueuePriority |
-| `Profile` | Id, Name, Status, Platform, ProfileGroupId, ExpiresAt, PostCount |
+| `Post` | Id, Body, Status, ScheduledAt, CreatedAt, Draft, Source, Media, Thread, Platforms, QueueId, QueuePriority |
+| `Profile` | Id, Name, Username, Status, InactiveReason, Platform, PlatformId, ProfileGroupId, ExpiresAt, PostCount, AvatarUrl, PlatformUrl, PlacementsSyncStatus |
+| `Placement` | Id, Name, AvatarUrl, Metadata |
+| `AccountPlacement` | Id, Platform, ExternalId, Name, AvatarUrl, Status, ActiveProfile, LinkedProfiles — returned by `Placements.ListAsync` |
+| `ApiKey` | Id, Name, ProfileGroupId, Sandbox, Token (create only), CreatedAt |
 | `ProfileGroup` | Id, Name, ProfilesCount |
 | `Media` | Id, Type, Url, Status |
-| `ThreadChild` | Id, Body, Media |
+| `ThreadChild` | Id, Body, Media, Platforms |
 | `ThreadChildInput` | Body, Media |
 | `Webhook` | Id, Url, Events, Secret, Enabled, Description, CreatedAt |
 | `WebhookDelivery` | Id, EventId, EventType, ResponseStatus, AttemptNumber, Success, AttemptedAt, CreatedAt |
-| `PlatformResult` | Platform, Status, Params, Error, AttemptedAt, Insights |
+| `PlatformResult` | Platform, ProfileId, ProfileName, Status, Permalink, Params, Error, ErrorDetails, AttemptedAt, Insights, Attachments |
 | `StatsResponse` | Data (dictionary keyed by post ID) |
 | `PostStats` | Platforms |
 | `PlatformStats` | ProfileId, Platform, Records |
@@ -928,9 +1295,14 @@ Key types:
 | `Timeslot` | Id, Day, Time |
 | `NextSlotResponse` | NextSlot |
 | `ListResponse<T>` | Data |
-| `Comment` | Id, ExternalId, Body, Status, AuthorUsername, AuthorAvatarUrl, AuthorExternalId, ParentExternalId, LikeCount, IsHidden, Permalink, PlatformData, PostedAt, CreatedAt, Replies |
+| `Comment` | Id, ExternalId, Body, Status, AuthorUsername, AuthorAvatarUrl, AuthorExternalId, ParentExternalId, LikeCount, IsHidden, Permalink, PlatformData, ExternalEditedAt, PostedAt, CreatedAt, Replies |
 | `BulkComment` | Every `Comment` property except `Replies`, plus PostId, ProfileId, Platform — returned by `Comments.ListAllAsync` |
-| `PostSync` | Id, ProfileId, Kind, Trigger, Status, StartedAt, CompletedAt, PostsSeen, PostsImported, BackfillFrom, OldestPostedAt, Error, CreatedAt |
+| `PostSync` | Id, ProfileId, PlacementId, Kind, Trigger, Status, StartedAt, CompletedAt, PostsSeen, PostsImported, BackfillFrom, OldestPostedAt, Error, CreatedAt |
+| `ChatSync` | Id, ProfileId, PlacementId, Kind, Trigger, Status, StartedAt, CompletedAt, ChatsSeen, MessagesImported, BackfillFrom, OldestUpdatedAt, Error, CreatedAt |
+| `Chat` | Id, ProfileId, Platform, ExternalPlacementId, Group, Participant*, LastInboundAt, LastOutboundAt, LastMessageAt, Metadata, Archived, WithinMessagingWindow, CreatedAt |
+| `Message` | … plus Elements, StoryReply, Interactive, Location, Contacts, Template, ErrorDetails |
+| `DailyStatsResponse` / `FollowerHistoryResponse` | Data with Records — returned by `GetDailyStatsAsync` / `GetFollowerHistoryAsync` |
+| `WhatsAppTemplate` | Id, ExternalId, ProfileId, Name, Language, Category, Status, ParameterFormat, Components, MessageSendTtlSeconds, RejectedReason, QualityScore, VariableCount, CreatedAt, UpdatedAt |
 | `AcceptedResponse` | Accepted |
 | `PaginatedResponse<T>` | Data, Total, Page, PerPage |
 
@@ -938,19 +1310,21 @@ Key types:
 
 | Type | Platform |
 |---|---|
-| `FacebookParams` | Format (`Post`, `Story`), FirstComment, PageId |
-| `InstagramParams` | Format (`Post`, `Reel`, `Story`), FirstComment, Collaborators, CoverUrl, AudioName, TrialStrategy, ThumbOffset, UserTags |
+| `FacebookParams` | Format (`Post`, `Story`), FirstComment, PageId, Link, AltText, MadeWithAi, Countries |
+| `InstagramParams` | Format (`Post`, `Reel`, `Story`), FirstComment, Collaborators, CoverUrl, CoverFile, AudioName, AudioId, AudioVolume, VideoVolume, StripAudio, TrialStrategy (`Manual`, `SsPerformance`), ThumbOffset, UserTags, AltText, MadeWithAi |
 | `InstagramUserTag` | Username, X, Y, MediaIndex |
-| `TikTokParams` | Format (`Video`, `Image`), PrivacyStatus, PhotoCoverIndex, AutoAddMusic, MadeWithAi, DisableComment, DisableDuet, DisableStitch, BrandContentToggle, BrandOrganicToggle |
-| `LinkedInParams` | Format (`Post`), OrganizationId |
-| `YouTubeParams` | Format (`Post`), Title, PrivacyStatus, CoverUrl, MadeForKids, Tags, CategoryId, ContainsSyntheticMedia |
-| `PinterestParams` | Format (`Pin`), Title, BoardId, DestinationLink, CoverUrl, ThumbOffset |
-| `ThreadsParams` | Format (`Post`) |
-| `TwitterParams` | Format (`Post`, `Poll`), PollOptions (2-4 choices, max 25 chars each; required for `Poll`), PollDurationMinutes (5-10080; required for `Poll`) |
-| `BlueskyParams` | Format (`Post`) |
+| `TikTokParams` | Format (`Video`, `Image`), PrivacyStatus, PhotoCoverIndex, AutoAddMusic, MadeWithAi, DisableComment, DisableDuet, DisableStitch, BrandContentToggle, BrandOrganicToggle, UploadAsDraft, CoverUrl, CoverFile, ThumbOffset |
+| `LinkedInParams` | Format (`Post`, `Poll`), OrganizationId, ReshareUrn, AltText, Countries, PollQuestion, PollOptions (2-4, max 30 chars), PollDurationDays (1, 3, 7, 14) |
+| `YouTubeParams` | Format (`Post`), Title, PrivacyStatus, CoverUrl, CoverFile, MadeForKids, Tags, CategoryId, ContainsSyntheticMedia |
+| `PinterestParams` | Format (`Pin`), Title, BoardId, DestinationLink, CoverUrl, CoverFile, ThumbOffset, AltText |
+| `ThreadsParams` | Format (`Post`), AltText, TopicTag |
+| `TwitterParams` | Format (`Post`, `Poll`), AltText, PollOptions (2-4 choices, max 25 chars each; required for `Poll`), PollDurationMinutes (5-10080; required for `Poll`) |
+| `BlueskyParams` | Format (`Post`), AltText |
 | `TelegramParams` | Format (`Post`), ChatId (required), ParseMode (`Html`, `MarkdownV2`), DisableLinkPreview, DisableNotification |
 
-Supported platforms: `Facebook`, `Instagram`, `TikTok`, `LinkedIn`, `YouTube`, `Twitter`, `Threads`, `Pinterest`, `Bluesky`, `Telegram`, `GoogleBusiness`. Telegram requires a `ChatId` per post — list channels with `client.Profiles.PlacementsAsync(profileId)`.
+`AltText` takes a `string` (one text for every media item) or a `string[]` (one per item, in order). `CoverFile` takes a local path, uploaded with the post, or a base64 data URL sent as-is.
+
+Supported platforms: `Facebook`, `Instagram`, `TikTok`, `LinkedIn`, `YouTube`, `Twitter`, `Threads`, `Pinterest`, `Bluesky`, `Telegram`, `GoogleBusiness`, `WhatsApp`. Telegram requires a `ChatId` per post — list channels with `client.Profiles.PlacementsAsync(profileId)`.
 
 #### Google Business
 
@@ -1011,6 +1385,11 @@ dotnet run --project examples -p:Example=CreatePost
 dotnet run --project examples -p:Example=InitializeConnection
 dotnet run --project examples -p:Example=PostStats
 dotnet run --project examples -p:Example=ManageQueues
+dotnet run --project examples -p:Example=EditPublishedPost
+dotnet run --project examples -p:Example=DmCarousel
+dotnet run --project examples -p:Example=GoogleBusiness
+dotnet run --project examples -p:Example=WhatsAppTemplates
+dotnet run --project examples -p:Example=WhatsAppGroups
 ```
 
 Replace the API key and profile group ID in the example files before running.

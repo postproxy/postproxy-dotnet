@@ -30,6 +30,40 @@ public record SendMessageParams
 
     /// <summary>Extra card fields for the element carrying <see cref="Buttons"/>. Requires them.</summary>
     public MessageCard? Card { get; init; }
+
+    /// <summary>
+    /// Carousel of up to 10 cards (Facebook and Instagram). Can't be combined with
+    /// <see cref="Body"/>, <see cref="Buttons"/> or <see cref="Card"/>.
+    /// </summary>
+    public IReadOnlyList<MessageElement>? Elements { get; init; }
+
+    /// <summary>
+    /// WhatsApp only. Send exactly one of <see cref="Body"/>, <see cref="Media"/>,
+    /// <see cref="Template"/>, <see cref="Interactive"/>, <see cref="Location"/> or
+    /// <see cref="Contacts"/>. Outside the 24-hour window only a template gets through.
+    /// </summary>
+    public MessageTemplateInput? Template { get; init; }
+
+    /// <summary>WhatsApp only: Meta's interactive message object.</summary>
+    public object? Interactive { get; init; }
+
+    /// <summary>WhatsApp only.</summary>
+    public MessageLocation? Location { get; init; }
+
+    /// <summary>WhatsApp only: Meta's contact objects.</summary>
+    public IReadOnlyList<object>? Contacts { get; init; }
+
+    /// <summary>WhatsApp only: <c>utility</c> sends a text message under the utility category.</summary>
+    public string? Category { get; init; }
+
+    /// <summary>WhatsApp only.</summary>
+    public bool? LinkPreview { get; init; }
+
+    /// <summary>WhatsApp only: deliver an audio attachment as a voice note.</summary>
+    public bool? VoiceNote { get; init; }
+
+    /// <summary>WhatsApp only: file name shown for a document attachment.</summary>
+    public string? Filename { get; init; }
     public string? ProfileGroupId { get; init; }
 
     /// <summary>

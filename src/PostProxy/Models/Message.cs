@@ -32,6 +32,9 @@ public record Message
     [JsonPropertyName("error_message")]
     public string? ErrorMessage { get; init; }
 
+    [JsonPropertyName("error_details")]
+    public ErrorDetails? ErrorDetails { get; init; }
+
     [JsonPropertyName("platform_data")]
     public IReadOnlyDictionary<string, JsonElement>? PlatformData { get; init; }
 
@@ -62,8 +65,30 @@ public record Message
     [JsonPropertyName("card")]
     public MessageCard? Card { get; init; }
 
+    [JsonPropertyName("elements")]
+    public IReadOnlyList<MessageElement>? Elements { get; init; }
+
     [JsonPropertyName("tapped_action")]
     public TappedAction? TappedAction { get; init; }
+
+    [JsonPropertyName("story_reply")]
+    public IReadOnlyDictionary<string, JsonElement>? StoryReply { get; init; }
+
+    /// <summary>WhatsApp only.</summary>
+    [JsonPropertyName("interactive")]
+    public IReadOnlyDictionary<string, JsonElement>? Interactive { get; init; }
+
+    /// <summary>WhatsApp only.</summary>
+    [JsonPropertyName("location")]
+    public MessageLocation? Location { get; init; }
+
+    /// <summary>WhatsApp only.</summary>
+    [JsonPropertyName("contacts")]
+    public IReadOnlyList<IReadOnlyDictionary<string, JsonElement>>? Contacts { get; init; }
+
+    /// <summary>WhatsApp only: the template this message was sent from.</summary>
+    [JsonPropertyName("template")]
+    public MessageTemplateRef? Template { get; init; }
 
     [JsonPropertyName("external_deleted_at")]
     public DateTimeOffset? ExternalDeletedAt { get; init; }

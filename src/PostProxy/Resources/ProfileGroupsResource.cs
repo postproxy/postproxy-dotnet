@@ -41,12 +41,27 @@ public class ProfileGroupsResource
     /// Initialize an OAuth connection. For BlueSky and Telegram use
     /// <see cref="ConnectBlueskyAsync"/> and <see cref="ConnectTelegramAsync"/>.
     /// </summary>
-    public Task<ConnectionResponse> InitializeConnectionAsync(string id, Platform platform, string? redirectUrl = null, CancellationToken cancellationToken = default)
+    /// <remarks>
+    /// <paramref name="onboarding"/> picks the flow:
+    /// Instagram <see cref="ConnectionOnboarding.Instagram"/> (default) or
+    /// <see cref="ConnectionOnboarding.Facebook"/> (Facebook login — needed for reel music);
+    /// WhatsApp <see cref="ConnectionOnboarding.Api"/> or <see cref="ConnectionOnboarding.BusinessApp"/>.
+    /// <paramref name="refreshConnection"/> re-authorizes an existing profile.
+    /// </remarks>
+    public Task<ConnectionResponse> InitializeConnectionAsync(
+        string id,
+        Platform platform,
+        string? redirectUrl = null,
+        ConnectionOnboarding? onboarding = null,
+        bool? refreshConnection = null,
+        CancellationToken cancellationToken = default)
     {
         var body = new InitializeConnectionBody
         {
             Platform = platform,
             RedirectUrl = redirectUrl,
+            Onboarding = onboarding,
+            RefreshConnection = refreshConnection,
         };
 
         return _client.PostAsync<ConnectionResponse>(
@@ -54,6 +69,9 @@ public class ProfileGroupsResource
             body,
             cancellationToken: cancellationToken);
     }
+
+    public Task<ConnectionResponse> InitializeConnectionAsync(string id, Platform platform, string? redirectUrl, CancellationToken cancellationToken) =>
+        InitializeConnectionAsync(id, platform, redirectUrl, null, null, cancellationToken);
 
     public Task<BlueskyConnectionResponse> ConnectBlueskyAsync(string id, string identifier, string appPassword, CancellationToken cancellationToken = default)
     {
@@ -103,6 +121,12 @@ public class ProfileGroupsResource
 
         [JsonPropertyName("redirect_url")]
         public string? RedirectUrl { get; init; }
+
+        [JsonPropertyName("onboarding")]
+        public ConnectionOnboarding? Onboarding { get; init; }
+
+        [JsonPropertyName("refresh_connection")]
+        public bool? RefreshConnection { get; init; }
     }
 
     private record BlueskyConnectBody

@@ -16,6 +16,11 @@ public sealed class PostProxyClient
     private ProfileCommentsResource? _profileComments;
     private ChatsResource? _chats;
     private MessagesResource? _messages;
+    private PlacementsResource? _placements;
+    private ApiKeysResource? _apiKeys;
+    private GoogleBusinessResource? _googleBusiness;
+    private WhatsAppTemplatesResource? _whatsAppTemplates;
+    private WhatsAppResource? _whatsApp;
 
     internal PostProxyClient(PostProxyHttpClient httpClient, string? defaultProfileGroupId)
     {
@@ -32,6 +37,11 @@ public sealed class PostProxyClient
     public ProfileCommentsResource ProfileComments => _profileComments ??= new ProfileCommentsResource(_httpClient);
     public ChatsResource Chats => _chats ??= new ChatsResource(_httpClient, _defaultProfileGroupId);
     public MessagesResource Messages => _messages ??= new MessagesResource(_httpClient, _defaultProfileGroupId);
+    public PlacementsResource Placements => _placements ??= new PlacementsResource(_httpClient);
+    public ApiKeysResource ApiKeys => _apiKeys ??= new ApiKeysResource(_httpClient);
+    public GoogleBusinessResource GoogleBusiness => _googleBusiness ??= new GoogleBusinessResource(_httpClient, _defaultProfileGroupId);
+    public WhatsAppTemplatesResource WhatsAppTemplates => _whatsAppTemplates ??= new WhatsAppTemplatesResource(_httpClient, _defaultProfileGroupId);
+    public WhatsAppResource WhatsApp => _whatsApp ??= new WhatsAppResource(_httpClient, _defaultProfileGroupId);
 
     public static PostProxyClientBuilder Builder(string apiKey) => new(apiKey);
 }

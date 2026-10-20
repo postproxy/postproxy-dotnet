@@ -311,4 +311,132 @@ public class MessagesResourceTests
         Assert.Equal(HttpMethod.Delete, req.Method);
         Assert.Contains("/api/messages/msg_111/unreact", req.Url);
     }
+
+    [Fact]
+    public async Task SendAsync_Carousel()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse(MockOutbound);
+
+        await client.Messages.SendAsync("chat_1", new SendMessageParams
+        {
+            Elements =
+            [
+                new MessageElement { Title = "Red", ImageUrl = "https://img.test/r.jpg" },
+                new MessageElement
+                {
+                    Title = "Blue",
+                    Subtitle = "Restocked",
+                    Buttons = [MessageButton.Postback("Pick", "BLUE")],
+                },
+            ],
+        });
+
+        Assert.Equal(
+            """{"elements":[{"title":"Red","image_url":"https://img.test/r.jpg"},{"title":"Blue","subtitle":"Restocked","buttons":[{"type":"postback","title":"Pick","payload":"BLUE"}]}]}""",
+            handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task SendAsync_WhatsAppTemplate()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse(MockOutbound);
+
+        await client.Messages.SendAsync("chat_1", new SendMessageParams
+        {
+            Template = new MessageTemplateInput
+            {
+                Name = "order_update",
+                Language = "en_US",
+                Variables = ["#1234"],
+                ButtonParams =
+                [
+                    new TemplateButtonParam
+                    {
+                        Index = 0,
+                        SubType = "url",
+                        Fields = new() { ["text"] = System.Text.Json.JsonSerializer.SerializeToElement("1234") },
+                    },
+                ],
+            },
+        });
+
+        Assert.Equal(
+            """{"template":{"name":"order_update","language":"en_US","variables":["#1234"],"button_params":[{"index":0,"sub_type":"url","text":"1234"}]}}""",
+            handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task SendAsync_WhatsAppPayloadsAndOptions()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        for (var i = 0; i < 6; i++) handler.EnqueueResponse(MockOutbound);
+
+        await client.Messages.SendAsync("chat_1", new SendMessageParams
+        {
+            Location = new MessageLocation { Latitude = 52.5, Longitude = 13.4, Name = "Store" },
+        });
+        await client.Messages.SendAsync("chat_1", new SendMessageParams
+        {
+            Contacts = [new { name = new { formatted_name = "Jane" } }],
+        });
+        await client.Messages.SendAsync("chat_1", new SendMessageParams
+        {
+            Body = "Your code is 1234",
+            Category = "utility",
+            LinkPreview = false,
+        });
+        await client.Messages.SendAsync("chat_1", new SendMessageParams
+        {
+            Media = ["https://files.test/a.pdf"],
+            Filename = "invoice.pdf",
+        });
+        await client.Messages.SendAsync("chat_1", new SendMessageParams
+        {
+            Media = ["https://files.test/a.ogg"],
+            VoiceNote = true,
+        });
+        await client.Messages.SendAsync("chat_1", new SendMessageParams
+        {
+            Interactive = new { type = "button", body = new { text = "Pick" } },
+        });
+
+        var bodies = handler.Requests.Select(r => r.Body).ToList();
+        Assert.Equal("""{"location":{"latitude":52.5,"longitude":13.4,"name":"Store"}}""", bodies[0]);
+        Assert.Equal("""{"contacts":[{"name":{"formatted_name":"Jane"}}]}""", bodies[1]);
+        Assert.Equal("""{"body":"Your code is 1234","category":"utility","link_preview":false}""", bodies[2]);
+        Assert.Equal("""{"media":["https://files.test/a.pdf"],"filename":"invoice.pdf"}""", bodies[3]);
+        Assert.Equal("""{"media":["https://files.test/a.ogg"],"voice_note":true}""", bodies[4]);
+        Assert.Equal("""{"interactive":{"type":"button","body":{"text":"Pick"}}}""", bodies[5]);
+    }
+
+    [Fact]
+    public async Task GetAsync_ParsesWhatsAppAndCarouselFields()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "id": "msg_9",
+            "chat_id": "chat_1",
+            "direction": "outbound",
+            "status": "published",
+            "elements": [{"title": "Red", "image_url": "https://img.test/r.jpg"}],
+            "story_reply": {"story_id": "st_1"},
+            "location": {"latitude": 52.5, "longitude": 13.4},
+            "contacts": [{"name": {"formatted_name": "Jane"}}],
+            "template": {"id": "tpl_1", "external_id": "998877", "name": "order_update", "language": "en_US", "variables": ["#1234"]},
+            "error_details": {"platform_error_code": "131047", "postproxy_note": "Outside the 24h window"}
+        }
+        """);
+
+        var message = await client.Messages.GetAsync("msg_9");
+
+        Assert.Equal("Red", message.Elements![0].Title);
+        Assert.Equal("st_1", message.StoryReply!["story_id"].GetString());
+        Assert.Equal(52.5, message.Location!.Latitude);
+        Assert.Single(message.Contacts!);
+        Assert.Equal("order_update", message.Template!.Name);
+        Assert.Equal("131047", message.ErrorDetails!.PlatformErrorCode);
+    }
 }

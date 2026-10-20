@@ -130,4 +130,71 @@ public class ChatsResourceTests
         Assert.Equal(HttpMethod.Delete, req.Method);
         Assert.Contains("/api/chats/chat_xyz789/archive", req.Url);
     }
+
+    [Fact]
+    public async Task CreateAsync_WithPlacementId_ForWhatsApp()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse(MockChat);
+
+        await client.Chats.CreateAsync("prof_wa", new CreateChatParams
+        {
+            ParticipantExternalId = "15551234567",
+            PlacementId = "pn_1",
+        });
+
+        Assert.Equal("""{"participant_external_id":"15551234567","placement_id":"pn_1"}""", handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task GetAsync_ParsesWhatsAppFields()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "id": "chat_wa",
+            "profile_id": "prof_wa",
+            "platform": "whatsapp",
+            "external_placement_id": "pn_1",
+            "group": false,
+            "participant_external_id": "15551234567",
+            "within_messaging_window": true,
+            "created_at": "2026-10-01T00:00:00Z"
+        }
+        """);
+
+        var chat = await client.Chats.GetAsync("chat_wa");
+
+        Assert.Equal(Platform.WhatsApp, chat.Platform);
+        Assert.Equal("pn_1", chat.ExternalPlacementId);
+        Assert.False(chat.Group);
+        Assert.True(chat.WithinMessagingWindow);
+    }
+
+    [Fact]
+    public async Task MarkReadAsync_PostsToCorrectUrl()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse(MockChat);
+
+        await client.Chats.MarkReadAsync("chat_xyz789");
+
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Contains("/api/chats/chat_xyz789/mark_read", handler.Requests[0].Url);
+    }
+
+    [Fact]
+    public async Task StartAndStopTyping()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"accepted": true}""");
+        handler.EnqueueResponse("""{"accepted": true}""");
+
+        var started = await client.Chats.StartTypingAsync("chat_xyz789");
+        await client.Chats.StopTypingAsync("chat_xyz789");
+
+        Assert.True(started.Accepted);
+        Assert.Contains("/api/chats/chat_xyz789/start_typing", handler.Requests[0].Url);
+        Assert.Contains("/api/chats/chat_xyz789/stop_typing", handler.Requests[1].Url);
+    }
 }

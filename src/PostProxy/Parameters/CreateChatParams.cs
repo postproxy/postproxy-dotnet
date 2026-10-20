@@ -6,6 +6,11 @@ public record CreateChatParams
     public required string ParticipantExternalId { get; init; }
     public string? ParticipantUsername { get; init; }
     public string? ParticipantName { get; init; }
+
+    /// <summary>
+    /// Required for WhatsApp: the phone number id from <c>Profiles.PlacementsAsync</c>.
+    /// </summary>
+    public string? PlacementId { get; init; }
     public string? ProfileGroupId { get; init; }
 
     /// <summary>

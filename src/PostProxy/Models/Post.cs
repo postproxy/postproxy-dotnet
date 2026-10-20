@@ -51,6 +51,10 @@ public record ThreadChild
 
     [JsonPropertyName("media")]
     public IReadOnlyList<Media>? Media { get; init; }
+
+    /// <summary>Each thread item is delivered separately; this shows whether it went out.</summary>
+    [JsonPropertyName("platforms")]
+    public IReadOnlyList<PlatformResult>? Platforms { get; init; }
 }
 
 public record Post
@@ -69,6 +73,13 @@ public record Post
 
     [JsonPropertyName("created_at")]
     public DateTimeOffset? CreatedAt { get; init; }
+
+    [JsonPropertyName("draft")]
+    public bool? Draft { get; init; }
+
+    /// <summary><c>postproxy</c>, or <c>imported</c> for a post pulled in from the platform.</summary>
+    [JsonPropertyName("source")]
+    public string? Source { get; init; }
 
     [JsonPropertyName("media")]
     public IReadOnlyList<Media>? Media { get; init; }
@@ -91,8 +102,17 @@ public record PlatformResult
     [JsonPropertyName("platform")]
     public Platform? Platform { get; init; }
 
+    [JsonPropertyName("profile_id")]
+    public string? ProfileId { get; init; }
+
+    [JsonPropertyName("profile_name")]
+    public string? ProfileName { get; init; }
+
     [JsonPropertyName("status")]
     public PlatformPostStatus? Status { get; init; }
+
+    [JsonPropertyName("permalink")]
+    public string? Permalink { get; init; }
 
     [JsonPropertyName("params")]
     public Dictionary<string, object>? Params { get; init; }
@@ -108,6 +128,28 @@ public record PlatformResult
 
     [JsonPropertyName("insights")]
     public Insights? Insights { get; init; }
+
+    [JsonPropertyName("attachments")]
+    public IReadOnlyList<PlatformAttachment>? Attachments { get; init; }
+}
+
+/// <summary>A file PostProxy generated for one platform, e.g. a TikTok cover.</summary>
+public record PlatformAttachment
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; init; }
+
+    [JsonPropertyName("status")]
+    public string? Status { get; init; }
+
+    [JsonPropertyName("content_type")]
+    public string? ContentType { get; init; }
+
+    [JsonPropertyName("url")]
+    public string? Url { get; init; }
 }
 
 public record ErrorDetails

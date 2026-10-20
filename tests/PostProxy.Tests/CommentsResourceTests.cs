@@ -354,4 +354,79 @@ public class CommentsResourceTests
 
         Assert.Equal("key-42", handler.Requests[0].Headers["Idempotency-Key"]);
     }
+
+    [Fact]
+    public async Task EditAsync_PatchesBody()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"accepted": true}""");
+
+        var result = await client.Comments.EditAsync("post_1", "c_1", "prof_1", "Fixed typo");
+
+        Assert.True(result.Accepted);
+        var req = handler.Requests[0];
+        Assert.Equal(HttpMethod.Patch, req.Method);
+        Assert.Equal("/api/posts/post_1/comments/c_1?profile_id=prof_1", req.Url);
+        Assert.Equal("""{"body":"Fixed typo"}""", req.Body);
+    }
+
+    [Fact]
+    public async Task PinAndUnpin_PostToCorrectUrls()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"accepted": true}""");
+        handler.EnqueueResponse("""{"accepted": true}""");
+
+        await client.Comments.PinAsync("post_1", "c_1", "prof_1");
+        await client.Comments.UnpinAsync("post_1", "c_1", "prof_1");
+
+        Assert.Equal("/api/posts/post_1/comments/c_1/pin?profile_id=prof_1", handler.Requests[0].Url);
+        Assert.Equal("/api/posts/post_1/comments/c_1/unpin?profile_id=prof_1", handler.Requests[1].Url);
+        Assert.All(handler.Requests, r => Assert.Equal(HttpMethod.Post, r.Method));
+    }
+
+    [Fact]
+    public async Task PrivateReplyAsync_SendsInteractiveElements()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"id": "msg_1", "chat_id": "chat_1", "direction": "outbound", "status": "pending"}""");
+
+        await client.Comments.PrivateReplyAsync("post_1", "c_1", "prof_1", "",
+            elements:
+            [
+                new MessageElement
+                {
+                    Title = "Sneaker",
+                    ImageUrl = "https://img.test/s.jpg",
+                    Buttons = [MessageButton.WebUrl("Buy", "https://shop.test")],
+                },
+            ],
+            quickReplies: [new QuickReply { Title = "More", Payload = "MORE" }]);
+
+        Assert.Equal(
+            """{"text":"","quick_replies":[{"title":"More","payload":"MORE"}],"elements":[{"title":"Sneaker","image_url":"https://img.test/s.jpg","buttons":[{"type":"web_url","title":"Buy","url":"https://shop.test"}]}]}""",
+            handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task ListAllAsync_FiltersByPlacement()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"total": 0, "page": 1, "per_page": 20, "data": []}""");
+
+        await client.Comments.ListAllAsync(placementId: "page_1");
+
+        Assert.Equal("/api/comments?placement_id=page_1", handler.Requests[0].Url);
+    }
+
+    [Fact]
+    public async Task GetAsync_ParsesExternalEditedAt()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"id": "c_1", "body": "edited", "external_edited_at": "2026-10-01T12:00:00Z"}""");
+
+        var comment = await client.Comments.GetAsync("post_1", "c_1", "prof_1");
+
+        Assert.Equal(DateTimeOffset.Parse("2026-10-01T12:00:00Z"), comment.ExternalEditedAt);
+    }
 }

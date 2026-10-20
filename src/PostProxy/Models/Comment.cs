@@ -47,6 +47,9 @@ public record Comment
     [JsonPropertyName("attachments")]
     public IReadOnlyList<Attachment>? Attachments { get; init; }
 
+    [JsonPropertyName("external_edited_at")]
+    public DateTimeOffset? ExternalEditedAt { get; init; }
+
     [JsonPropertyName("posted_at")]
     public DateTimeOffset? PostedAt { get; init; }
 

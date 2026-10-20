@@ -52,6 +52,8 @@ public class MessagesResource
             if (parameters.Body is not null) fields.Add(new("body", parameters.Body));
             if (parameters.Tag is not null) fields.Add(new("tag", parameters.Tag));
             if (parameters.ReplyToExternalId is not null) fields.Add(new("reply_to_external_id", parameters.ReplyToExternalId));
+            if (parameters.VoiceNote is not null) fields.Add(new("voice_note", parameters.VoiceNote.Value ? "true" : "false"));
+            if (parameters.Filename is not null) fields.Add(new("filename", parameters.Filename));
 
             if (parameters.Media is { Count: > 0 })
             {
@@ -75,6 +77,15 @@ public class MessagesResource
         if (parameters.QuickReplies is not null) jsonBody["quick_replies"] = parameters.QuickReplies;
         if (parameters.Buttons is not null) jsonBody["buttons"] = parameters.Buttons;
         if (parameters.Card is not null) jsonBody["card"] = parameters.Card;
+        if (parameters.Elements is not null) jsonBody["elements"] = parameters.Elements;
+        if (parameters.Template is not null) jsonBody["template"] = parameters.Template;
+        if (parameters.Interactive is not null) jsonBody["interactive"] = PostProxyHttpClient.Raw(parameters.Interactive);
+        if (parameters.Location is not null) jsonBody["location"] = parameters.Location;
+        if (parameters.Contacts is not null) jsonBody["contacts"] = parameters.Contacts.Select(PostProxyHttpClient.Raw).ToList();
+        if (parameters.Category is not null) jsonBody["category"] = parameters.Category;
+        if (parameters.LinkPreview is not null) jsonBody["link_preview"] = parameters.LinkPreview;
+        if (parameters.VoiceNote is not null) jsonBody["voice_note"] = parameters.VoiceNote;
+        if (parameters.Filename is not null) jsonBody["filename"] = parameters.Filename;
 
         return _client.PostAsync<Message>(path, jsonBody, query, cancellationToken, parameters.IdempotencyKey);
     }

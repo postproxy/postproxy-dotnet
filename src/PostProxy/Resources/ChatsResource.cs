@@ -44,6 +44,7 @@ public class ChatsResource
         var body = new Dictionary<string, object> { ["participant_external_id"] = parameters.ParticipantExternalId };
         if (parameters.ParticipantUsername is not null) body["participant_username"] = parameters.ParticipantUsername;
         if (parameters.ParticipantName is not null) body["participant_name"] = parameters.ParticipantName;
+        if (parameters.PlacementId is not null) body["placement_id"] = parameters.PlacementId;
 
         return _client.PostAsync<Chat>($"/api/profiles/{Uri.EscapeDataString(profileId)}/chats", body, query, cancellationToken, parameters.IdempotencyKey);
     }
@@ -76,6 +77,23 @@ public class ChatsResource
     public Task<Chat> UnarchiveAsync(string chatId, string? profileGroupId, string? idempotencyKey, CancellationToken cancellationToken = default)
     {
         return _client.DeleteAsync<Chat>($"/api/chats/{Uri.EscapeDataString(chatId)}/archive", BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
+    }
+
+    /// <summary>Marks the latest inbound message as read (shows the read receipt).</summary>
+    public Task<Chat> MarkReadAsync(string chatId, string? profileGroupId = null, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+    {
+        return _client.PostAsync<Chat>($"/api/chats/{Uri.EscapeDataString(chatId)}/mark_read", null, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
+    }
+
+    /// <summary>Shows the typing indicator. Facebook, Instagram and WhatsApp only.</summary>
+    public Task<AcceptedResponse> StartTypingAsync(string chatId, string? profileGroupId = null, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+    {
+        return _client.PostAsync<AcceptedResponse>($"/api/chats/{Uri.EscapeDataString(chatId)}/start_typing", null, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
+    }
+
+    public Task<AcceptedResponse> StopTypingAsync(string chatId, string? profileGroupId = null, string? idempotencyKey = null, CancellationToken cancellationToken = default)
+    {
+        return _client.PostAsync<AcceptedResponse>($"/api/chats/{Uri.EscapeDataString(chatId)}/stop_typing", null, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
     }
 
     private Dictionary<string, string> BuildQuery(string? profileGroupId)

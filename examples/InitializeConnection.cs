@@ -15,6 +15,22 @@ var connection = await client.ProfileGroups.InitializeConnectionAsync(
     "https://your-app.com/callback");
 Console.WriteLine($"Connection URL: {connection.Url}");
 
+// Instagram via Facebook login (needed to attach music to reels)
+var igViaFacebook = await client.ProfileGroups.InitializeConnectionAsync(
+    "your-profile-group-id",
+    Platform.Instagram,
+    "https://your-app.com/callback",
+    onboarding: ConnectionOnboarding.Facebook);
+Console.WriteLine($"Instagram (Facebook login) URL: {igViaFacebook.Url}");
+
+// WhatsApp through the WhatsApp Business app (ConnectionOnboarding.Api for the Cloud API)
+var whatsapp = await client.ProfileGroups.InitializeConnectionAsync(
+    "your-profile-group-id",
+    Platform.WhatsApp,
+    "https://your-app.com/callback",
+    onboarding: ConnectionOnboarding.BusinessApp);
+Console.WriteLine($"WhatsApp URL: {whatsapp.Url}");
+
 // After connecting, list a profile's placements (Pages, channels, locations)
 var placements = await client.Profiles.PlacementsAsync("profile-id");
 foreach (var p in placements.Data)

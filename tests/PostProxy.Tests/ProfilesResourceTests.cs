@@ -241,4 +241,147 @@ public class ProfilesResourceTests
         Assert.Equal(PostSyncStatus.Completed, sync.Status);
         Assert.Contains("/api/profiles/prof-1/post_syncs/sync456def", handler.Requests[0].Url);
     }
+
+    [Fact]
+    public async Task GetAsync_ParsesNewProfileFields()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "id": "prof-1", "name": "Acme", "username": "acme", "status": "inactive",
+            "inactive_reason": "network_taken", "platform": "whatsapp", "platform_id": "waba_1",
+            "avatar_url": "https://img.test/a.png", "platform_url": "https://wa.me/1555",
+            "placements_sync_status": "synced"
+        }
+        """);
+
+        var profile = await client.Profiles.GetAsync("prof-1");
+
+        Assert.Equal("acme", profile.Username);
+        Assert.Equal(ProfileInactiveReason.NetworkTaken, profile.InactiveReason);
+        Assert.Equal(Platform.WhatsApp, profile.Platform);
+        Assert.Equal("waba_1", profile.PlatformId);
+        Assert.Equal("https://img.test/a.png", profile.AvatarUrl);
+        Assert.Equal("https://wa.me/1555", profile.PlatformUrl);
+        Assert.Equal("synced", profile.PlacementsSyncStatus);
+    }
+
+    [Fact]
+    public async Task GetDailyStatsAsync_WithAttribution()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {"data": {"profile_id": "p1", "attribution": "publish", "records": [{"date": "2026-09-01", "impressions": 10, "platform_stats": null}], "metrics": {}}}
+        """);
+
+        var result = await client.Profiles.GetDailyStatsAsync("p1", placementId: "pl1", from: "2026-09-01", to: "2026-09-30", attribution: DailyStatsAttribution.Publish);
+
+        Assert.Equal(10, result.Data.Records[0].Metrics["impressions"].GetInt32());
+        Assert.Equal(DailyStatsAttribution.Publish, result.Data.Attribution);
+        var url = handler.Requests[0].Url;
+        Assert.StartsWith("/api/profiles/p1/daily_stats?", url);
+        Assert.Contains("attribution=publish", url);
+        Assert.Contains("placement_id=pl1", url);
+    }
+
+    [Fact]
+    public async Task GetFollowerHistoryAsync_BuildsQuery()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"data": {"records": [{"date": "2026-09-01", "followers_total": 120}]}}""");
+
+        var result = await client.Profiles.GetFollowerHistoryAsync("p1", from: "2026-09-01");
+
+        Assert.Equal(120, result.Data.Records[0].FollowersTotal);
+        Assert.Equal("/api/profiles/p1/follower_history?from=2026-09-01", handler.Requests[0].Url);
+    }
+
+    [Fact]
+    public async Task GetParticipantStatusAsync_ReturnsStatus()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"is_verified_user": true, "fetched_at": "2026-10-01T00:00:00Z"}""");
+
+        var result = await client.Profiles.GetParticipantStatusAsync("p1", "igsid_1");
+
+        Assert.True(result.IsVerifiedUser);
+        Assert.Equal("/api/profiles/p1/participants/igsid_1", handler.Requests[0].Url);
+    }
+
+    [Fact]
+    public async Task ResolveMentionAsync_SendsUrl()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"urn": "urn:li:organization:1", "type": "organization", "name": "Acme", "vanity_name": "acme"}""");
+
+        var result = await client.Profiles.ResolveMentionAsync("p1", "https://www.linkedin.com/company/acme");
+
+        Assert.Equal("urn:li:organization:1", result.Urn);
+        Assert.Contains("url=https%3A%2F%2Fwww.linkedin.com%2Fcompany%2Facme", handler.Requests[0].Url);
+    }
+
+    [Fact]
+    public async Task GetInstagramAvailableAudioAsync_BuildsQuery()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"data": [{"id": "a1"}]}""");
+
+        var result = await client.Profiles.GetInstagramAvailableAudioAsync("p1", InstagramAudioType.OriginalSound, "summer");
+
+        Assert.Equal("a1", result.Data[0]["id"].GetString());
+        Assert.Equal("/api/profiles/p1/instagram/available_audio?audio_type=original_sound&search_query=summer", handler.Requests[0].Url);
+    }
+
+    [Fact]
+    public async Task FacebookPage_ReadAndUpdate()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"about": "Hi"}""");
+        handler.EnqueueResponse("""{"success": true}""");
+
+        var page = await client.Profiles.GetFacebookPageAsync("p1", "page_1", fields: "about,website");
+        await client.Profiles.UpdateFacebookPageAsync("p1", "page_1", new Dictionary<string, object?> { ["about"] = "New about" });
+
+        Assert.Equal("Hi", page.GetProperty("about").GetString());
+        Assert.Equal("/api/profiles/p1/facebook/page?page_id=page_1&fields=about%2Cwebsite", handler.Requests[0].Url);
+        Assert.Equal(HttpMethod.Patch, handler.Requests[1].Method);
+        Assert.Equal("/api/profiles/p1/facebook/update_page", handler.Requests[1].Url);
+        Assert.Equal("""{"about":"New about","page_id":"page_1"}""", handler.Requests[1].Body);
+    }
+
+    [Fact]
+    public async Task AssignToGroupAsync_PatchesTargetGroup()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"id": "p1", "profile_group_id": "pg_2"}""");
+
+        var profile = await client.Profiles.AssignToGroupAsync("p1", "pg_2");
+
+        Assert.Equal("pg_2", profile.ProfileGroupId);
+        Assert.Equal(HttpMethod.Patch, handler.Requests[0].Method);
+        Assert.Equal("/api/profiles/p1/assign_to_group", handler.Requests[0].Url);
+        Assert.Equal("""{"target_profile_group_id":"pg_2"}""", handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task ChatBackfillAndSyncs()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        const string sync = """{"id": "cs1", "trigger": "backfill", "status": "pending", "chats_seen": 0, "messages_imported": 0, "created_at": "2026-10-01T00:00:00Z"}""";
+        handler.EnqueueResponse(sync);
+        handler.EnqueueResponse($$"""{"total": 1, "page": 1, "per_page": 5, "data": [{{sync}}]}""");
+        handler.EnqueueResponse(sync);
+
+        var started = await client.Profiles.BackfillChatsAsync("p1", "2026-01-01T00:00:00Z");
+        var runs = await client.Profiles.ListChatSyncsAsync("p1", status: PostSyncStatus.Running, perPage: 5);
+        await client.Profiles.GetChatSyncAsync("p1", "cs1");
+
+        Assert.Equal(0, started.ChatsSeen);
+        Assert.Equal(PostSyncTrigger.Backfill, runs.Data[0].Trigger);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Equal("/api/profiles/p1/backfill_chats", handler.Requests[0].Url);
+        Assert.Equal("""{"from":"2026-01-01T00:00:00Z"}""", handler.Requests[0].Body);
+        Assert.Equal("/api/profiles/p1/chat_syncs?status=running&per_page=5", handler.Requests[1].Url);
+        Assert.Equal("/api/profiles/p1/chat_syncs/cs1", handler.Requests[2].Url);
+    }
 }

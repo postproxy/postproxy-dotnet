@@ -14,6 +14,9 @@ public record PostSync
     [JsonPropertyName("profile_id")]
     public string? ProfileId { get; init; }
 
+    [JsonPropertyName("placement_id")]
+    public string? PlacementId { get; init; }
+
     /// <summary>Always <c>posts</c> today.</summary>
     [JsonPropertyName("kind")]
     public string? Kind { get; init; }
@@ -49,6 +52,54 @@ public record PostSync
     public DateTimeOffset? OldestPostedAt { get; init; }
 
     /// <summary>Platform error message when <see cref="Status"/> is Failed.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; init; }
+
+    [JsonPropertyName("created_at")]
+    public DateTimeOffset CreatedAt { get; init; }
+}
+
+/// <summary>
+/// A chat (DM) sync run, started by <c>Profiles.BackfillChatsAsync</c> or on connect.
+/// </summary>
+public record ChatSync
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+
+    [JsonPropertyName("profile_id")]
+    public string? ProfileId { get; init; }
+
+    [JsonPropertyName("placement_id")]
+    public string? PlacementId { get; init; }
+
+    [JsonPropertyName("kind")]
+    public string? Kind { get; init; }
+
+    [JsonPropertyName("trigger")]
+    public PostSyncTrigger Trigger { get; init; }
+
+    [JsonPropertyName("status")]
+    public PostSyncStatus Status { get; init; }
+
+    [JsonPropertyName("started_at")]
+    public DateTimeOffset? StartedAt { get; init; }
+
+    [JsonPropertyName("completed_at")]
+    public DateTimeOffset? CompletedAt { get; init; }
+
+    [JsonPropertyName("chats_seen")]
+    public int ChatsSeen { get; init; }
+
+    [JsonPropertyName("messages_imported")]
+    public int MessagesImported { get; init; }
+
+    [JsonPropertyName("backfill_from")]
+    public DateTimeOffset? BackfillFrom { get; init; }
+
+    [JsonPropertyName("oldest_updated_at")]
+    public DateTimeOffset? OldestUpdatedAt { get; init; }
+
     [JsonPropertyName("error")]
     public string? Error { get; init; }
 

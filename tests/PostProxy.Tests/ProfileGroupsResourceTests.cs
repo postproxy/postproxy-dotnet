@@ -70,4 +70,33 @@ public class ProfileGroupsResourceTests
         Assert.Contains("\"facebook\"", body);
         Assert.Contains("https://myapp.com/callback", body);
     }
+
+    [Fact]
+    public async Task InitializeConnectionAsync_WithOnboardingAndRefresh()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"url": "https://x", "success": true}""");
+
+        await client.ProfileGroups.InitializeConnectionAsync(
+            "pg_1", Platform.Instagram, "https://app.test/cb",
+            onboarding: ConnectionOnboarding.Facebook, refreshConnection: true);
+
+        Assert.Equal(
+            """{"platform":"instagram","redirect_url":"https://app.test/cb","onboarding":"facebook","refresh_connection":true}""",
+            handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task InitializeConnectionAsync_WhatsAppBusinessApp()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"url": "https://x", "success": true}""");
+
+        await client.ProfileGroups.InitializeConnectionAsync(
+            "pg_1", Platform.WhatsApp, "https://app.test/cb", ConnectionOnboarding.BusinessApp);
+
+        Assert.Equal(
+            """{"platform":"whatsapp","redirect_url":"https://app.test/cb","onboarding":"business_app"}""",
+            handler.Requests[0].Body);
+    }
 }
