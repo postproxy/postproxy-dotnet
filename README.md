@@ -288,7 +288,7 @@ var post = await client.Posts.UpdateAsync("post-id", new UpdatePostParams
 {
     Platforms = new PlatformParams
     {
-        YouTube = new YouTubeParams { PrivacyStatus = "unlisted" },
+        YouTube = new YouTubeParams { PrivacyStatus = YouTubePrivacy.Unlisted },
     },
 });
 
@@ -467,21 +467,23 @@ var isValid = WebhookSignature.Verify(
 
 Subscribe to any of these events (or pass `["*"]` for all):
 
-`post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.edited`, `platform_post.edit_failed`, `platform_post.insights`, `profile.connected`, `profile.disconnected`, `profile.stats`, `profile.placements_synced`, `placement.orphaned`, `placement.restored`, `media.failed`, `comment.created`, `comment.failed`, `comment.failed_waiting_for_retry`, `comment.delivery_unconfirmed`, `comment.edited`, `comment.edit_failed`, `profile_comment.created`, `profile_comment.failed`, `profile_comment.failed_waiting_for_retry`, `profile_comment.deleted`, `message.received`, `message.sent`, `message.delivered`, `message.read`, `message.edited`, `message.deleted`, `message.failed_waiting_for_retry`, `message.failed`, `reaction.received`, `referral.received`, `message_template.status_updated`, `message_template.category_updated`, `placement.name_status_updated`, `placement.quality_updated`, `whatsapp.automatic_event`.
+`post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.edited`, `platform_post.edit_failed`, `platform_post.insights`, `profile.connected`, `profile.disconnected`, `profile.stats`, `profile.placements_synced`, `placement.orphaned`, `placement.restored`, `media.failed`, `comment.created`, `comment.failed`, `comment.failed_waiting_for_retry`, `comment.delivery_unconfirmed`, `comment.edited`, `comment.edit_failed`, `profile_comment.created`, `profile_comment.failed`, `profile_comment.failed_waiting_for_retry`, `profile_comment.edited`, `profile_comment.deleted`, `message.received`, `message.sent`, `message.delivered`, `message.read`, `message.edited`, `message.deleted`, `message.failed_waiting_for_retry`, `message.failed`, `reaction.received`, `referral.received`, `chat.thread_control_changed`, `chat.thread_control_requested`, `message_template.status_updated`, `message_template.category_updated`, `placement.name_status_updated`, `placement.quality_updated`, `whatsapp.automatic_event`.
 
 `WebhookEvents.Parse` validates the envelope; `As*` helpers decode `Data` into a typed payload:
 
 | Events | Payload | Helper |
 |---|---|---|
 | `platform_post.*` (incl. `edited`, `edit_failed`) | `PlatformPostData` | `AsPlatformPost` |
-| `profile.connected`, `profile.disconnected` | `ProfileEventData` | `AsProfileEvent` |
+| `profile.connected`, `profile.disconnected` (with `Error` / `ErrorDetails` when PostProxy disconnected it) | `ProfileEventData` | `AsProfileEvent` |
 | `profile.placements_synced` | `PlacementsSyncedData` | `AsPlacementsSynced` |
 | `placement.*` | `PlacementEventData` (event-specific fields in `Extra`) | `AsPlacementEvent` |
 | `comment.*` | `CommentCreatedData` | `AsCommentCreated` |
-| `profile_comment.*` | `ProfileCommentCreatedData` | `AsProfileCommentCreated` |
+| `profile_comment.*` (incl. `edited`) | `ProfileCommentCreatedData` | `AsProfileCommentCreated` |
 | the eight `message.*` events | `MessageEventData` | `AsMessageEvent` |
 | `reaction.received` | `ReactionEventData` | `AsReactionEvent` |
 | `referral.received` | `ReferralEventData` | `AsReferralEvent` |
+| `chat.thread_control_changed` | `ThreadControlChangedEventData` | `AsThreadControlChanged` |
+| `chat.thread_control_requested` | `ThreadControlRequestedEventData` | `AsThreadControlRequested` |
 | `message_template.*` | `MessageTemplateEventData` | `AsMessageTemplateEvent` |
 | `whatsapp.automatic_event` | `WhatsAppAutomaticEventData` | `AsWhatsAppAutomaticEvent` |
 
@@ -519,6 +521,10 @@ switch (ev.Type)
     case WebhookEventType.PlatformPostEditFailed:
         var ef = WebhookEvents.AsPlatformPost(ev);
         Console.WriteLine($"Edit failed on {ef.Platform}: {ef.Error}");
+        break;
+    case WebhookEventType.ChatThreadControlChanged:
+        var tc = WebhookEvents.AsThreadControlChanged(ev);
+        Console.WriteLine($"Chat {tc.Chat.Id} now owned by {tc.NewOwnerAppId}");
         break;
     case WebhookEventType.MessageTemplateStatusUpdated:
         var t = WebhookEvents.AsMessageTemplateEvent(ev);
@@ -661,6 +667,14 @@ await client.Chats.MarkReadAsync("chat-id");
 await client.Chats.StartTypingAsync("chat-id");
 await client.Chats.StopTypingAsync("chat-id");
 
+// Thread control (Facebook & Instagram): move the conversation between Meta apps
+// sharing the inbox. Each returns the chat; Metadata["thread_control"] holds the owner.
+await client.Chats.PassThreadControlAsync("chat-id", "263902037430900", metadata: "escalated to support");
+await client.Chats.TakeThreadControlAsync("chat-id");
+await client.Chats.ReleaseThreadControlAsync("chat-id");
+await client.Chats.RequestThreadControlAsync("chat-id"); // the owner decides; watch chat.thread_control_changed
+var owner = await client.Chats.GetThreadOwnerAsync("chat-id"); // AppId, ExpiresAt (both null when idle)
+
 // List messages in a chat (filter by direction/status)
 var messages = await client.Messages.ListAsync("chat-id", new ListMessagesParams
 {
@@ -676,7 +690,8 @@ foreach (var msg in messages.Data)
 // Send a text message
 var sent = await client.Messages.SendAsync("chat-id", "Yes, we ship worldwide!");
 
-// Send media (URLs and/or local files), with optional tag / reply / reply markup
+// Send media (URLs and/or local files), with optional tag / reply / reply markup.
+// ReplyToExternalId (Telegram, WhatsApp & Instagram) quotes an earlier message.
 await client.Messages.SendAsync("chat-id", new SendMessageParams
 {
     Body = "Here's the photo.",
@@ -948,14 +963,22 @@ await gbp.CreatePlaceActionLinkAsync("profile-id", "location-id", "https://book.
 await gbp.CreateMediaAsync("profile-id", "location-id", "https://example.com/storefront.jpg",
     category: "EXTERIOR", mediaFormat: "PHOTO");
 var media = await gbp.ListMediaAsync("profile-id", "location-id");
+
+// Search keywords that showed the location, month by month (max 12 months).
+// Unlike the rest of this resource, the response is typed (SearchKeywordsResponse).
+var keywords = await gbp.GetSearchKeywordsAsync("profile-id", "location-id", fromMonth: "2026-07", toMonth: "2026-09");
+foreach (var month in keywords.Months)
+    foreach (var k in month.Keywords)
+        // Low-volume keywords have Impressions null and an ImpressionsThreshold bound
+        Console.WriteLine($"{month.Month} {k.Keyword}: {k.Impressions?.ToString() ?? $"<{k.ImpressionsThreshold}"}");
 ```
 
-All 19 methods: `GetLocationAsync`, `UpdateLocationAsync`, `ListAvailableLocationCategoriesAsync`,
+All 20 methods: `GetLocationAsync`, `UpdateLocationAsync`, `ListAvailableLocationCategoriesAsync`,
 `UpdateHoursAsync`, `GetAttributesAsync`, `ListAvailableAttributesAsync`, `UpdateAttributesAsync`,
 `GetServiceListAsync`, `UpdateServiceListAsync`, `GetFoodMenusAsync`, `UpdateFoodMenusAsync`,
 `ListPlaceActionLinksAsync`, `ListAvailablePlaceActionTypesAsync`, `CreatePlaceActionLinkAsync`,
 `UpdatePlaceActionLinkAsync`, `DeletePlaceActionLinkAsync`, `ListMediaAsync`, `CreateMediaAsync`,
-`DeleteMediaAsync`.
+`DeleteMediaAsync`, `GetSearchKeywordsAsync`.
 
 ### Profile comments (Google Business reviews)
 
@@ -1021,6 +1044,23 @@ Console.WriteLine(mention.Urn);
 
 // Instagram reel music (profiles connected via Facebook login) — use with InstagramParams.AudioId
 var audio = await client.Profiles.GetInstagramAvailableAudioAsync("profile-id", InstagramAudioType.Music, "summer");
+
+// Instagram (Facebook login): incoming collaboration invites
+var invites = await client.Profiles.ListInstagramCollaborationInvitesAsync("ig-profile-id"); // NextCursor -> after:
+await client.Profiles.AcceptInstagramCollaborationInviteAsync("ig-profile-id", invites.CollaborationInvites[0].MediaId);
+await client.Profiles.DeclineInstagramCollaborationInviteAsync("ig-profile-id", "17890000000000001");
+
+// Pinterest boards — a board is a placement; its Id is the BoardId you publish to
+var board = await client.Profiles.CreatePinterestBoardAsync("pin-profile-id", "Summer Recipes",
+    description: "Light dinners for hot days", privacy: PinterestBoardPrivacy.Public); // or Protected
+await client.Profiles.DeletePinterestBoardAsync("pin-profile-id", board.Id); // also deletes its Pins
+
+// YouTube playlists — publish into one with YouTubeParams.PlaylistId
+var playlists = await client.Profiles.ListYouTubePlaylistsAsync("yt-profile-id"); // NextPageToken -> pageToken:
+var playlist = await client.Profiles.CreateYouTubePlaylistAsync("yt-profile-id", "Tutorials",
+    description: "Step-by-step guides", privacyStatus: YouTubePrivacy.Public);
+await client.Profiles.UpdateYouTubePlaylistAsync("yt-profile-id", playlist.Id, privacyStatus: YouTubePrivacy.Unlisted);
+await client.Profiles.DeleteYouTubePlaylistAsync("yt-profile-id", playlist.Id); // keeps the videos
 
 // Facebook Page about / contact fields
 var page = await client.Profiles.GetFacebookPageAsync("profile-id", "page-id", fields: "about,website");
@@ -1303,6 +1343,10 @@ Key types:
 | `Message` | … plus Elements, StoryReply, Interactive, Location, Contacts, Template, ErrorDetails |
 | `DailyStatsResponse` / `FollowerHistoryResponse` | Data with Records — returned by `GetDailyStatsAsync` / `GetFollowerHistoryAsync` |
 | `WhatsAppTemplate` | Id, ExternalId, ProfileId, Name, Language, Category, Status, ParameterFormat, Components, MessageSendTtlSeconds, RejectedReason, QualityScore, VariableCount, CreatedAt, UpdatedAt |
+| `ThreadOwner` | AppId, ExpiresAt — returned by `Chats.GetThreadOwnerAsync` |
+| `YouTubePlaylist` | Id, Title, Description, PrivacyStatus, ItemCount, ThumbnailUrl, PublishedAt (`YouTubePlaylistsResponse`: Data, NextPageToken) |
+| `InstagramCollaborationInvite` | MediaId, MediaOwnerUsername, Caption, MediaUrl (`InstagramCollaborationInvitesResponse`: CollaborationInvites, NextCursor) |
+| `SearchKeywordsResponse` | Months (`SearchKeywordsMonth`: Month, Keywords as `SearchKeyword`: Keyword, Impressions, ImpressionsThreshold) |
 | `AcceptedResponse` | Accepted |
 | `PaginatedResponse<T>` | Data, Total, Page, PerPage |
 
@@ -1311,11 +1355,11 @@ Key types:
 | Type | Platform |
 |---|---|
 | `FacebookParams` | Format (`Post`, `Story`), FirstComment, PageId, Link, AltText, MadeWithAi, Countries |
-| `InstagramParams` | Format (`Post`, `Reel`, `Story`), FirstComment, Collaborators, CoverUrl, CoverFile, AudioName, AudioId, AudioVolume, VideoVolume, StripAudio, TrialStrategy (`Manual`, `SsPerformance`), ThumbOffset, UserTags, AltText, MadeWithAi |
+| `InstagramParams` | Format (`Post`, `Reel`, `Story`), FirstComment, Collaborators, CoverUrl, CoverFile, AudioName, AudioId, AudioVolume, VideoVolume, StripAudio, TrialStrategy (`Manual`, `SsPerformance`), ThumbOffset, UserTags, AltText, MadeWithAi, DisableComment, LocationId, ShareToFeed (reels) |
 | `InstagramUserTag` | Username, X, Y, MediaIndex |
 | `TikTokParams` | Format (`Video`, `Image`), PrivacyStatus, PhotoCoverIndex, AutoAddMusic, MadeWithAi, DisableComment, DisableDuet, DisableStitch, BrandContentToggle, BrandOrganicToggle, UploadAsDraft, CoverUrl, CoverFile, ThumbOffset |
-| `LinkedInParams` | Format (`Post`, `Poll`), OrganizationId, ReshareUrn, AltText, Countries, PollQuestion, PollOptions (2-4, max 30 chars), PollDurationDays (1, 3, 7, 14) |
-| `YouTubeParams` | Format (`Post`), Title, PrivacyStatus, CoverUrl, CoverFile, MadeForKids, Tags, CategoryId, ContainsSyntheticMedia |
+| `LinkedInParams` | Format (`Post`, `Poll`), OrganizationId, ReshareUrn, AltText, Countries, PollQuestion, PollOptions (2-4, max 30 chars), PollDurationDays (1, 3, 7, 14), DocumentTitle, FirstComment |
+| `YouTubeParams` | Format (`Post`), Title, PrivacyStatus, CoverUrl, CoverFile, MadeForKids, Tags, CategoryId, ContainsSyntheticMedia, PlaylistId |
 | `PinterestParams` | Format (`Pin`), Title, BoardId, DestinationLink, CoverUrl, CoverFile, ThumbOffset, AltText |
 | `ThreadsParams` | Format (`Post`), AltText, TopicTag |
 | `TwitterParams` | Format (`Post`, `Poll`), AltText, PollOptions (2-4 choices, max 25 chars each; required for `Poll`), PollDurationMinutes (5-10080; required for `Poll`) |
@@ -1388,6 +1432,8 @@ dotnet run --project examples -p:Example=ManageQueues
 dotnet run --project examples -p:Example=EditPublishedPost
 dotnet run --project examples -p:Example=DmCarousel
 dotnet run --project examples -p:Example=GoogleBusiness
+dotnet run --project examples -p:Example=YouTubePlaylists
+dotnet run --project examples -p:Example=ThreadControl
 dotnet run --project examples -p:Example=WhatsAppTemplates
 dotnet run --project examples -p:Example=WhatsAppGroups
 ```

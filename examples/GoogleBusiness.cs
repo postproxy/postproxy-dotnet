@@ -43,3 +43,16 @@ await gbp.CreatePlaceActionLinkAsync(profileId, locationId,
 await gbp.CreateMediaAsync(profileId, locationId, "https://example.com/storefront.jpg",
     category: "EXTERIOR", mediaFormat: "PHOTO");
 Console.WriteLine($"Media: {await gbp.ListMediaAsync(profileId, locationId)}");
+
+// Searches that showed the location, month by month (at most 12 months)
+var keywords = await gbp.GetSearchKeywordsAsync(profileId, locationId,
+    fromMonth: "2026-07", toMonth: "2026-09");
+foreach (var month in keywords.Months)
+{
+    foreach (var k in month.Keywords)
+    {
+        // Low-volume keywords report only an upper bound
+        var count = k.Impressions?.ToString() ?? $"<{k.ImpressionsThreshold}";
+        Console.WriteLine($"{month.Month} {k.Keyword}: {count}");
+    }
+}

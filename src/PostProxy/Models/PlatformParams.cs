@@ -156,6 +156,18 @@ public record InstagramParams
 
     [JsonPropertyName("made_with_ai")]
     public bool? MadeWithAi { get; init; }
+
+    /// <summary>Turn comments off on the post, applied right after publishing. Post, reel.</summary>
+    [JsonPropertyName("disable_comment")]
+    public bool? DisableComment { get; init; }
+
+    /// <summary>Numeric id of a Facebook Page with an address. Post, reel; not stories.</summary>
+    [JsonPropertyName("location_id")]
+    public string? LocationId { get; init; }
+
+    /// <summary>Reels only. <c>false</c> publishes to the Reels tab only, not the feed/grid.</summary>
+    [JsonPropertyName("share_to_feed")]
+    public bool? ShareToFeed { get; init; }
 }
 
 /// <summary>
@@ -265,6 +277,17 @@ public record LinkedInParams
     /// <summary>1, 3, 7 (default) or 14.</summary>
     [JsonPropertyName("poll_duration_days")]
     public int? PollDurationDays { get; init; }
+
+    /// <summary>Title shown above an attached document. Defaults to the file name.</summary>
+    [JsonPropertyName("document_title")]
+    public string? DocumentTitle { get; init; }
+
+    /// <summary>
+    /// Posted right after publishing, as the same author (1,250 characters or fewer).
+    /// Not on polls; profiles connected before 2026-10-28 must reconnect.
+    /// </summary>
+    [JsonPropertyName("first_comment")]
+    public string? FirstComment { get; init; }
 }
 
 public record YouTubeParams
@@ -300,6 +323,10 @@ public record YouTubeParams
 
     [JsonPropertyName("contains_synthetic_media")]
     public bool? ContainsSyntheticMedia { get; init; }
+
+    /// <summary>Add the video to this playlist, from <c>Profiles.ListYouTubePlaylistsAsync</c>.</summary>
+    [JsonPropertyName("playlist_id")]
+    public string? PlaylistId { get; init; }
 }
 
 public record TwitterParams

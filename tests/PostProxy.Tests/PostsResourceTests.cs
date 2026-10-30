@@ -588,4 +588,28 @@ public class PostsResourceTests
         Assert.Equal("cover", result.Attachments![0].Type);
         Assert.Equal(PlatformPostStatus.Failed, post.Thread![0].Platforms![0].Status);
     }
+
+    [Fact]
+    public async Task CreateAsync_SendsParamsAddedIn115()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"id": "p"}""");
+
+        await client.Posts.CreateAsync(new CreatePostParams
+        {
+            Body = "hi",
+            Profiles = ["prof_1"],
+            Platforms = new PlatformParams
+            {
+                Instagram = new InstagramParams { Format = InstagramFormat.Reel, DisableComment = true, LocationId = "110843418940484", ShareToFeed = false },
+                LinkedIn = new LinkedInParams { DocumentTitle = "Q3 report", FirstComment = "Full deck in the comments" },
+                YouTube = new YouTubeParams { Title = "Intro", PlaylistId = "PL1" },
+            },
+        });
+
+        var body = handler.Requests[0].Body!;
+        Assert.Contains("\"instagram\":{\"format\":\"reel\",\"disable_comment\":true,\"location_id\":\"110843418940484\",\"share_to_feed\":false}", body);
+        Assert.Contains("\"linkedin\":{\"document_title\":\"Q3 report\",\"first_comment\":\"Full deck in the comments\"}", body);
+        Assert.Contains("\"youtube\":{\"title\":\"Intro\",\"playlist_id\":\"PL1\"}", body);
+    }
 }

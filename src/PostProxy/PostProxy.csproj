@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>PostProxy</RootNamespace>
     <PackageId>PostProxy</PackageId>
-    <Version>1.14.0</Version>
+    <Version>1.15.0</Version>
     <Authors>Postproxy</Authors>
     <Description>.NET SDK for the Postproxy API</Description>
     <PackageProjectUrl>https://postproxy.dev</PackageProjectUrl>

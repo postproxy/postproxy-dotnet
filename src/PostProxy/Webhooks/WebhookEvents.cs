@@ -94,6 +94,13 @@ public record ProfileEventData
     [JsonPropertyName("username")] public string? Username { get; init; }
     /// <summary>On <c>profile.disconnected</c>: <c>user</c> or <c>automated</c>.</summary>
     [JsonPropertyName("origin")] public string? Origin { get; init; }
+    /// <summary>
+    /// On <c>profile.disconnected</c> with origin <c>automated</c>: why PostProxy
+    /// deactivated it, e.g. "Twitter access revoked".
+    /// </summary>
+    [JsonPropertyName("error")] public string? Error { get; init; }
+    /// <summary>Raw platform error behind the disconnect, when available.</summary>
+    [JsonPropertyName("error_details")] public ErrorDetails? ErrorDetails { get; init; }
 }
 
 /// <summary>
@@ -203,7 +210,7 @@ public record ProfileCommentCreatedData
     [JsonPropertyName("created_at")] public DateTimeOffset CreatedAt { get; init; }
 }
 
-/// <summary>The chat carried by <c>referral.received</c>.</summary>
+/// <summary>The chat carried by <c>referral.received</c> and the <c>chat.thread_control_*</c> events.</summary>
 public record WebhookChatData
 {
     [JsonPropertyName("id")] public required string Id { get; init; }
@@ -227,6 +234,26 @@ public record ReferralEventData
     [JsonPropertyName("type")] public string? Type { get; init; }
     /// <summary>WhatsApp click-to-WhatsApp ad click id.</summary>
     [JsonPropertyName("ctwa_clid")] public string? CtwaClid { get; init; }
+    [JsonPropertyName("occurred_at")] public DateTimeOffset? OccurredAt { get; init; }
+}
+
+/// <summary>Payload of <c>chat.thread_control_changed</c>: a Meta app passed or took a Facebook / Instagram conversation.</summary>
+public record ThreadControlChangedEventData
+{
+    [JsonPropertyName("chat")] public required WebhookChatData Chat { get; init; }
+    /// <summary>Absent when the conversation was idle.</summary>
+    [JsonPropertyName("previous_owner_app_id")] public string? PreviousOwnerAppId { get; init; }
+    [JsonPropertyName("new_owner_app_id")] public string? NewOwnerAppId { get; init; }
+    [JsonPropertyName("metadata")] public string? Metadata { get; init; }
+    [JsonPropertyName("occurred_at")] public DateTimeOffset? OccurredAt { get; init; }
+}
+
+/// <summary>Payload of <c>chat.thread_control_requested</c>: another Meta app asked PostProxy to pass a conversation.</summary>
+public record ThreadControlRequestedEventData
+{
+    [JsonPropertyName("chat")] public required WebhookChatData Chat { get; init; }
+    [JsonPropertyName("requested_owner_app_id")] public string? RequestedOwnerAppId { get; init; }
+    [JsonPropertyName("metadata")] public string? Metadata { get; init; }
     [JsonPropertyName("occurred_at")] public DateTimeOffset? OccurredAt { get; init; }
 }
 
@@ -291,6 +318,8 @@ public static class WebhookEvents
     public static PlacementEventData AsPlacementEvent(WebhookEvent ev) => Decode<PlacementEventData>(ev);
     public static PlacementsSyncedData AsPlacementsSynced(WebhookEvent ev) => Decode<PlacementsSyncedData>(ev);
     public static ReferralEventData AsReferralEvent(WebhookEvent ev) => Decode<ReferralEventData>(ev);
+    public static ThreadControlChangedEventData AsThreadControlChanged(WebhookEvent ev) => Decode<ThreadControlChangedEventData>(ev);
+    public static ThreadControlRequestedEventData AsThreadControlRequested(WebhookEvent ev) => Decode<ThreadControlRequestedEventData>(ev);
     public static MessageTemplateEventData AsMessageTemplateEvent(WebhookEvent ev) => Decode<MessageTemplateEventData>(ev);
     public static WhatsAppAutomaticEventData AsWhatsAppAutomaticEvent(WebhookEvent ev) => Decode<WhatsAppAutomaticEventData>(ev);
 

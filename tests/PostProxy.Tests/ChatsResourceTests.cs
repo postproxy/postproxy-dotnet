@@ -197,4 +197,51 @@ public class ChatsResourceTests
         Assert.Contains("/api/chats/chat_xyz789/start_typing", handler.Requests[0].Url);
         Assert.Contains("/api/chats/chat_xyz789/stop_typing", handler.Requests[1].Url);
     }
+
+    [Fact]
+    public async Task PassThreadControlAsync_SendsTargetAppAndMetadata()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse(MockChat);
+
+        var chat = await client.Chats.PassThreadControlAsync("chat_xyz789", "263902037430900", "escalated to support");
+
+        Assert.Equal("chat_xyz789", chat.Id);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Equal("/api/chats/chat_xyz789/pass_thread_control", handler.Requests[0].Url);
+        Assert.Equal("""{"target_app_id":"263902037430900","metadata":"escalated to support"}""", handler.Requests[0].Body);
+    }
+
+    [Fact]
+    public async Task TakeReleaseAndRequestThreadControl()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        for (var i = 0; i < 3; i++) handler.EnqueueResponse(MockChat);
+
+        await client.Chats.TakeThreadControlAsync("chat_xyz789");
+        await client.Chats.ReleaseThreadControlAsync("chat_xyz789", metadata: "done");
+        await client.Chats.RequestThreadControlAsync("chat_xyz789");
+
+        var reqs = handler.Requests;
+        Assert.Equal("/api/chats/chat_xyz789/take_thread_control", reqs[0].Url);
+        Assert.Equal("{}", reqs[0].Body);
+        Assert.Equal("/api/chats/chat_xyz789/release_thread_control", reqs[1].Url);
+        Assert.Equal("""{"metadata":"done"}""", reqs[1].Body);
+        Assert.Equal("/api/chats/chat_xyz789/request_thread_control", reqs[2].Url);
+        Assert.All(reqs, r => Assert.Equal(HttpMethod.Post, r.Method));
+    }
+
+    [Fact]
+    public async Task GetThreadOwnerAsync_ReturnsOwner()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"app_id": "263902037430900", "expires_at": "2026-10-28T12:00:00Z"}""");
+
+        var owner = await client.Chats.GetThreadOwnerAsync("chat_xyz789");
+
+        Assert.Equal("263902037430900", owner.AppId);
+        Assert.Equal(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero), owner.ExpiresAt);
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+        Assert.Equal("/api/chats/chat_xyz789/thread_owner", handler.Requests[0].Url);
+    }
 }

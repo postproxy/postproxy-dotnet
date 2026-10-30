@@ -10,6 +10,7 @@ public record SendMessageParams
     public IReadOnlyList<string>? Media { get; init; }
     public IReadOnlyList<string>? MediaFiles { get; init; }
     public string? Tag { get; init; }
+    /// <summary>Telegram, WhatsApp and Instagram: the <c>external_id</c> of the message to quote.</summary>
     public string? ReplyToExternalId { get; init; }
     public IReadOnlyDictionary<string, JsonElement>? ReplyMarkup { get; init; }
 

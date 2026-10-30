@@ -211,6 +211,76 @@ public class WebhookEventsTests
         Assert.Equal(expected, ev.Type);
     }
 
+    [Theory]
+    [InlineData("profile_comment.edited", WebhookEventType.ProfileCommentEdited)]
+    [InlineData("chat.thread_control_changed", WebhookEventType.ChatThreadControlChanged)]
+    [InlineData("chat.thread_control_requested", WebhookEventType.ChatThreadControlRequested)]
+    public void ParsesEventTypesAddedIn115(string type, WebhookEventType expected)
+    {
+        var ev = WebhookEvents.Parse(Envelope(type, new { id = "x" }));
+
+        Assert.Equal(expected, ev.Type);
+    }
+
+    [Fact]
+    public void ParsesThreadControlChanged()
+    {
+        var ev = WebhookEvents.Parse(Envelope("chat.thread_control_changed", new
+        {
+            chat = new { id = "chat_1", profile_id = "prof_fb", platform = "facebook", group = false, participant_external_id = "psid_1" },
+            previous_owner_app_id = (string?)null,
+            new_owner_app_id = "263902037430900",
+            metadata = "escalated",
+            occurred_at = "2026-10-28T12:00:00Z",
+        }));
+
+        var data = WebhookEvents.AsThreadControlChanged(ev);
+        Assert.Equal("chat_1", data.Chat.Id);
+        Assert.Null(data.PreviousOwnerAppId);
+        Assert.Equal("263902037430900", data.NewOwnerAppId);
+        Assert.Equal("escalated", data.Metadata);
+        Assert.NotNull(data.OccurredAt);
+    }
+
+    [Fact]
+    public void ParsesThreadControlRequested()
+    {
+        var ev = WebhookEvents.Parse(Envelope("chat.thread_control_requested", new
+        {
+            chat = new { id = "chat_1", platform = "instagram", group = false },
+            requested_owner_app_id = "1217981644879628",
+            metadata = "please",
+        }));
+
+        var data = WebhookEvents.AsThreadControlRequested(ev);
+        Assert.Equal(Platform.Instagram, data.Chat.Platform);
+        Assert.Equal("1217981644879628", data.RequestedOwnerAppId);
+        Assert.Equal("please", data.Metadata);
+    }
+
+    [Fact]
+    public void ParsesProfileDisconnectedWithError()
+    {
+        var ev = WebhookEvents.Parse(Envelope("profile.disconnected", new
+        {
+            id = "prof_1",
+            name = "Acme",
+            platform = "twitter",
+            profile_group_id = "pg_1",
+            status = "inactive",
+            uid = "u1",
+            origin = "automated",
+            error = "Twitter access revoked",
+            error_details = new { platform_error_code = "89", platform_error_message = "Invalid or expired token" },
+        }));
+
+        var data = WebhookEvents.AsProfileEvent(ev);
+        Assert.Equal("automated", data.Origin);
+        Assert.Equal("Twitter access revoked", data.Error);
+        Assert.Equal("89", data.ErrorDetails!.PlatformErrorCode);
+        Assert.Equal("Invalid or expired token", data.ErrorDetails.PlatformErrorMessage);
+    }
+
     [Fact]
     public void ParsesMessageTemplateStatusUpdated()
     {

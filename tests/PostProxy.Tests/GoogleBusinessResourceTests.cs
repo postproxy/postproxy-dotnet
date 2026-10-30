@@ -133,4 +133,32 @@ public class GoogleBusinessResourceTests
         Assert.Equal(HttpMethod.Delete, reqs[2].Method);
         Assert.Contains("media_name=accounts%2F1%2Flocations%2F1%2Fmedia%2F9", reqs[2].Url);
     }
+
+    [Fact]
+    public async Task GetSearchKeywordsAsync_ReturnsTypedMonths()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "months": [
+                {
+                    "month": "2026-07",
+                    "keywords": [
+                        {"keyword": "coffee near me", "impressions": 245, "impressions_threshold": null},
+                        {"keyword": "acme coffee", "impressions": null, "impressions_threshold": 15}
+                    ]
+                }
+            ]
+        }
+        """);
+
+        var result = await client.GoogleBusiness.GetSearchKeywordsAsync("prof_gbp", "loc_1", fromMonth: "2026-07", toMonth: "2026-09");
+
+        Assert.Equal("2026-07", result.Months[0].Month);
+        Assert.Equal(245, result.Months[0].Keywords[0].Impressions);
+        Assert.Null(result.Months[0].Keywords[1].Impressions);
+        Assert.Equal(15, result.Months[0].Keywords[1].ImpressionsThreshold);
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+        Assert.Equal($"{Base}/search_keywords?location_id=loc_1&from_month=2026-07&to_month=2026-09", handler.Requests[0].Url);
+    }
 }

@@ -201,6 +201,7 @@ public enum WebhookEventType
     [JsonStringEnumMemberName("profile_comment.created")] ProfileCommentCreated,
     [JsonStringEnumMemberName("profile_comment.failed")] ProfileCommentFailed,
     [JsonStringEnumMemberName("profile_comment.failed_waiting_for_retry")] ProfileCommentFailedWaitingForRetry,
+    [JsonStringEnumMemberName("profile_comment.edited")] ProfileCommentEdited,
     [JsonStringEnumMemberName("profile_comment.deleted")] ProfileCommentDeleted,
     [JsonStringEnumMemberName("message.received")] MessageReceived,
     [JsonStringEnumMemberName("message.sent")] MessageSent,
@@ -212,6 +213,8 @@ public enum WebhookEventType
     [JsonStringEnumMemberName("message.failed")] MessageFailed,
     [JsonStringEnumMemberName("reaction.received")] ReactionReceived,
     [JsonStringEnumMemberName("referral.received")] ReferralReceived,
+    [JsonStringEnumMemberName("chat.thread_control_changed")] ChatThreadControlChanged,
+    [JsonStringEnumMemberName("chat.thread_control_requested")] ChatThreadControlRequested,
     [JsonStringEnumMemberName("message_template.status_updated")] MessageTemplateStatusUpdated,
     [JsonStringEnumMemberName("message_template.category_updated")] MessageTemplateCategoryUpdated,
     [JsonStringEnumMemberName("placement.name_status_updated")] PlacementNameStatusUpdated,
@@ -251,6 +254,14 @@ public enum InstagramAudioType
 {
     [JsonStringEnumMemberName("music")] Music,
     [JsonStringEnumMemberName("original_sound")] OriginalSound,
+}
+
+/// <summary>Who can see a Pinterest board created via <c>Profiles.CreatePinterestBoardAsync</c>.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PinterestBoardPrivacy>))]
+public enum PinterestBoardPrivacy
+{
+    [JsonStringEnumMemberName("PUBLIC")] Public,
+    [JsonStringEnumMemberName("PROTECTED")] Protected,
 }
 
 /// <summary>

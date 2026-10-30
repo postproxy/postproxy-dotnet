@@ -46,6 +46,10 @@ public record Chat
     [JsonPropertyName("last_message_at")]
     public DateTimeOffset? LastMessageAt { get; init; }
 
+    /// <summary>
+    /// Facebook and Instagram chats carry <c>thread_control</c> here once known
+    /// (<c>owner_app_id</c>, <c>expires_at</c>, <c>updated_at</c>).
+    /// </summary>
     [JsonPropertyName("metadata")]
     public IReadOnlyDictionary<string, JsonElement>? Metadata { get; init; }
 

@@ -163,6 +163,152 @@ public class ProfilesResource
             $"/api/profiles/{Uri.EscapeDataString(id)}/instagram/available_audio", query, cancellationToken);
     }
 
+    /// <summary>
+    /// Posts from other accounts that invited this Instagram profile as a collaborator.
+    /// Profiles connected via Facebook login only. Pass <c>NextCursor</c> as
+    /// <paramref name="after"/> for the next page.
+    /// </summary>
+    public Task<InstagramCollaborationInvitesResponse> ListInstagramCollaborationInvitesAsync(
+        string id,
+        string? after = null,
+        string? profileGroupId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = BuildQuery(profileGroupId);
+        if (after is not null) query["after"] = after;
+
+        return _client.GetAsync<InstagramCollaborationInvitesResponse>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/instagram/collaboration_invites", query, cancellationToken);
+    }
+
+    public Task<InstagramCollaborationInviteResult> AcceptInstagramCollaborationInviteAsync(
+        string id,
+        string mediaId,
+        string? profileGroupId = null,
+        string? idempotencyKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        var body = new Dictionary<string, object?> { ["media_id"] = mediaId };
+
+        return _client.PostAsync<InstagramCollaborationInviteResult>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/instagram/accept_collaboration_invite", body, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
+    }
+
+    public Task<InstagramCollaborationInviteResult> DeclineInstagramCollaborationInviteAsync(
+        string id,
+        string mediaId,
+        string? profileGroupId = null,
+        string? idempotencyKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        var body = new Dictionary<string, object?> { ["media_id"] = mediaId };
+
+        return _client.PostAsync<InstagramCollaborationInviteResult>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/instagram/decline_collaboration_invite", body, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
+    }
+
+    /// <summary>
+    /// Pinterest only. Boards are the profile's placements; the new board's <c>Id</c>
+    /// is the <c>BoardId</c> you publish to.
+    /// </summary>
+    public Task<Placement> CreatePinterestBoardAsync(
+        string id,
+        string name,
+        string? description = null,
+        PinterestBoardPrivacy? privacy = null,
+        string? profileGroupId = null,
+        string? idempotencyKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        var body = new Dictionary<string, object?> { ["name"] = name };
+        if (description is not null) body["description"] = description;
+        if (privacy is not null) body["privacy"] = PostProxyHttpClient.EnumValue(privacy.Value);
+
+        return _client.PostAsync<Placement>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/pinterest/create_board", body, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
+    }
+
+    /// <summary>Also deletes every Pin on the board, on Pinterest. Cannot be undone.</summary>
+    public Task<PinterestBoardDeleted> DeletePinterestBoardAsync(
+        string id,
+        string boardId,
+        string? profileGroupId = null,
+        string? idempotencyKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = BuildQuery(profileGroupId);
+        query["board_id"] = boardId;
+
+        return _client.DeleteAsync<PinterestBoardDeleted>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/pinterest/delete_board", query, cancellationToken, idempotencyKey);
+    }
+
+    /// <summary>YouTube only. Up to 50 playlists per page; pass <c>NextPageToken</c> as <paramref name="pageToken"/>.</summary>
+    public Task<YouTubePlaylistsResponse> ListYouTubePlaylistsAsync(
+        string id,
+        string? pageToken = null,
+        string? profileGroupId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = BuildQuery(profileGroupId);
+        if (pageToken is not null) query["page_token"] = pageToken;
+
+        return _client.GetAsync<YouTubePlaylistsResponse>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/youtube/playlists", query, cancellationToken);
+    }
+
+    public Task<YouTubePlaylist> CreateYouTubePlaylistAsync(
+        string id,
+        string title,
+        string? description = null,
+        YouTubePrivacy? privacyStatus = null,
+        string? profileGroupId = null,
+        string? idempotencyKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        var body = new Dictionary<string, object?> { ["title"] = title };
+        if (description is not null) body["description"] = description;
+        if (privacyStatus is not null) body["privacy_status"] = PostProxyHttpClient.EnumValue(privacyStatus.Value);
+
+        return _client.PostAsync<YouTubePlaylist>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/youtube/create_playlist", body, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
+    }
+
+    /// <summary>Fields left <c>null</c> keep their current value; an empty <paramref name="description"/> clears it.</summary>
+    public Task<YouTubePlaylist> UpdateYouTubePlaylistAsync(
+        string id,
+        string playlistId,
+        string? title = null,
+        string? description = null,
+        YouTubePrivacy? privacyStatus = null,
+        string? profileGroupId = null,
+        string? idempotencyKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        var body = new Dictionary<string, object?> { ["playlist_id"] = playlistId };
+        if (title is not null) body["title"] = title;
+        if (description is not null) body["description"] = description;
+        if (privacyStatus is not null) body["privacy_status"] = PostProxyHttpClient.EnumValue(privacyStatus.Value);
+
+        return _client.PatchAsync<YouTubePlaylist>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/youtube/update_playlist", body, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
+    }
+
+    /// <summary>The videos in the playlist are not deleted.</summary>
+    public Task<YouTubePlaylistDeleted> DeleteYouTubePlaylistAsync(
+        string id,
+        string playlistId,
+        string? profileGroupId = null,
+        string? idempotencyKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = BuildQuery(profileGroupId);
+        query["playlist_id"] = playlistId;
+
+        return _client.DeleteAsync<YouTubePlaylistDeleted>(
+            $"/api/profiles/{Uri.EscapeDataString(id)}/youtube/delete_playlist", query, cancellationToken, idempotencyKey);
+    }
+
     /// <summary>Facebook only. <paramref name="pageId"/> is the placement id from <see cref="PlacementsAsync(string, CancellationToken)"/>.</summary>
     public Task<JsonElement> GetFacebookPageAsync(
         string id,

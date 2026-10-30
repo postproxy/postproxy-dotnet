@@ -1,4 +1,5 @@
 using System.Text.Json;
+using PostProxy.Models;
 
 namespace PostProxy.Resources;
 
@@ -307,6 +308,29 @@ public class GoogleBusinessResource
         string? idempotencyKey = null,
         CancellationToken cancellationToken = default) =>
         RemoveAsync(profileId, "delete_media", locationId, "media_name", mediaName, profileGroupId, idempotencyKey, cancellationToken);
+
+    // --- Search keywords ---
+
+    /// <summary>
+    /// The searches that showed the location in Google Search and Maps, month by month.
+    /// Months are <c>YYYY-MM</c>; the range is at most 12 months. Unlike the rest of this
+    /// resource, the response is PostProxy-shaped (snake_case) and typed.
+    /// </summary>
+    public Task<SearchKeywordsResponse> GetSearchKeywordsAsync(
+        string profileId,
+        string locationId,
+        string? fromMonth = null,
+        string? toMonth = null,
+        string? profileGroupId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = BuildQuery(profileGroupId);
+        query["location_id"] = locationId;
+        if (fromMonth is not null) query["from_month"] = fromMonth;
+        if (toMonth is not null) query["to_month"] = toMonth;
+
+        return _client.GetAsync<SearchKeywordsResponse>(ActionPath(profileId, "search_keywords"), query, cancellationToken);
+    }
 
     private static string ActionPath(string profileId, string action) =>
         $"/api/profiles/{Uri.EscapeDataString(profileId)}/google_business/{action}";

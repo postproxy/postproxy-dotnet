@@ -96,6 +96,52 @@ public class ChatsResource
         return _client.PostAsync<AcceptedResponse>($"/api/chats/{Uri.EscapeDataString(chatId)}/stop_typing", null, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
     }
 
+    // --- Thread control (Facebook & Instagram) ---
+    //
+    // Meta gives one app at a time control of a conversation when several share a
+    // Page or Instagram inbox. These return the chat, whose Metadata["thread_control"]
+    // holds the owner Meta reports back.
+
+    /// <summary>
+    /// Hands the conversation to another Meta app, e.g. Page Inbox <c>263902037430900</c>
+    /// or Instagram Inbox <c>1217981644879628</c>.
+    /// </summary>
+    public Task<Chat> PassThreadControlAsync(string chatId, string targetAppId, string? metadata = null, string? profileGroupId = null, string? idempotencyKey = null, CancellationToken cancellationToken = default) =>
+        ThreadControlAsync(chatId, "pass_thread_control", targetAppId, metadata, profileGroupId, idempotencyKey, cancellationToken);
+
+    /// <summary>
+    /// Takes the conversation from whichever app holds it. Needs Conversation Routing;
+    /// Instagram must be connected via Facebook.
+    /// </summary>
+    public Task<Chat> TakeThreadControlAsync(string chatId, string? metadata = null, string? profileGroupId = null, string? idempotencyKey = null, CancellationToken cancellationToken = default) =>
+        ThreadControlAsync(chatId, "take_thread_control", null, metadata, profileGroupId, idempotencyKey, cancellationToken);
+
+    /// <summary>Gives up control; the conversation goes idle.</summary>
+    public Task<Chat> ReleaseThreadControlAsync(string chatId, string? metadata = null, string? profileGroupId = null, string? idempotencyKey = null, CancellationToken cancellationToken = default) =>
+        ThreadControlAsync(chatId, "release_thread_control", null, metadata, profileGroupId, idempotencyKey, cancellationToken);
+
+    /// <summary>
+    /// Asks the current owner to pass the conversation. Nothing changes until it
+    /// does — watch for <c>chat.thread_control_changed</c>.
+    /// </summary>
+    public Task<Chat> RequestThreadControlAsync(string chatId, string? metadata = null, string? profileGroupId = null, string? idempotencyKey = null, CancellationToken cancellationToken = default) =>
+        ThreadControlAsync(chatId, "request_thread_control", null, metadata, profileGroupId, idempotencyKey, cancellationToken);
+
+    /// <summary>Asks Meta which app controls the conversation right now.</summary>
+    public Task<ThreadOwner> GetThreadOwnerAsync(string chatId, string? profileGroupId = null, CancellationToken cancellationToken = default)
+    {
+        return _client.GetAsync<ThreadOwner>($"/api/chats/{Uri.EscapeDataString(chatId)}/thread_owner", BuildQuery(profileGroupId), cancellationToken);
+    }
+
+    private Task<Chat> ThreadControlAsync(string chatId, string action, string? targetAppId, string? metadata, string? profileGroupId, string? idempotencyKey, CancellationToken cancellationToken)
+    {
+        var body = new Dictionary<string, object?>();
+        if (targetAppId is not null) body["target_app_id"] = targetAppId;
+        if (metadata is not null) body["metadata"] = metadata;
+
+        return _client.PostAsync<Chat>($"/api/chats/{Uri.EscapeDataString(chatId)}/{action}", body, BuildQuery(profileGroupId), cancellationToken, idempotencyKey);
+    }
+
     private Dictionary<string, string> BuildQuery(string? profileGroupId)
     {
         var query = new Dictionary<string, string>();

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.15.0] - 2026-10-30
+
+### Added
+
+- **Thread control (Facebook & Instagram).** `Chats.PassThreadControlAsync(chatId, targetAppId, metadata)`, `TakeThreadControlAsync`, `ReleaseThreadControlAsync`, `RequestThreadControlAsync` (each returns the `Chat`, whose `Metadata["thread_control"]` holds the owner) and `Chats.GetThreadOwnerAsync` (`ThreadOwner`: `AppId`, `ExpiresAt`).
+- **Instagram collaboration invites** (Facebook login): `Profiles.ListInstagramCollaborationInvitesAsync(id, after)` (`InstagramCollaborationInvitesResponse`), `AcceptInstagramCollaborationInviteAsync`, `DeclineInstagramCollaborationInviteAsync` (`InstagramCollaborationInviteResult`).
+- **Pinterest boards:** `Profiles.CreatePinterestBoardAsync(id, name, description, privacy)` (with `PinterestBoardPrivacy`) returns the new `Placement`; `Profiles.DeletePinterestBoardAsync(id, boardId)` (`PinterestBoardDeleted`).
+- **YouTube playlists:** `Profiles.ListYouTubePlaylistsAsync(id, pageToken)`, `CreateYouTubePlaylistAsync`, `UpdateYouTubePlaylistAsync`, `DeleteYouTubePlaylistAsync` (`YouTubePlaylist`, `YouTubePlaylistsResponse`, `YouTubePlaylistDeleted`).
+- **Google Business:** `GoogleBusiness.GetSearchKeywordsAsync(profileId, locationId, fromMonth, toMonth)` returns a typed `SearchKeywordsResponse` (`SearchKeywordsMonth`, `SearchKeyword`) — unlike the resource's other methods, which pass Google's payload through as `JsonElement`.
+- **Post params:** `InstagramParams.DisableComment`, `LocationId` and (reels) `ShareToFeed`; `LinkedInParams.DocumentTitle` and `FirstComment`; `YouTubeParams.PlaylistId`.
+- **Webhooks:** `profile_comment.edited`, `chat.thread_control_changed` (`ThreadControlChangedEventData`, `AsThreadControlChanged`) and `chat.thread_control_requested` (`ThreadControlRequestedEventData`, `AsThreadControlRequested`). `ProfileEventData` gains `Error` and `ErrorDetails` for `profile.disconnected`.
+- Examples: `YouTubePlaylists.cs`, `ThreadControl.cs`; search keywords in `GoogleBusiness.cs`.
+
+### Changed
+
+- `SendMessageParams.ReplyToExternalId` now also works on Instagram chats.
+
 ## [1.14.0] - 2026-10-20
 
 ### Added

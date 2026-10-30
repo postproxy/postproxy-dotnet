@@ -384,4 +384,105 @@ public class ProfilesResourceTests
         Assert.Equal("/api/profiles/p1/chat_syncs?status=running&per_page=5", handler.Requests[1].Url);
         Assert.Equal("/api/profiles/p1/chat_syncs/cs1", handler.Requests[2].Url);
     }
+
+    [Fact]
+    public async Task InstagramCollaborationInvites_ListAcceptDecline()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""
+        {
+            "collaboration_invites": [
+                {"media_id": "1789", "media_owner_username": "partner_brand", "caption": "Collab", "media_url": "https://x"}
+            ],
+            "next_cursor": null
+        }
+        """);
+        handler.EnqueueResponse("""{"accepted": true, "media_id": "1789"}""");
+        handler.EnqueueResponse("""{"declined": true, "media_id": "1790"}""");
+
+        var list = await client.Profiles.ListInstagramCollaborationInvitesAsync("p1", after: "cur_1");
+        var accepted = await client.Profiles.AcceptInstagramCollaborationInviteAsync("p1", "1789");
+        var declined = await client.Profiles.DeclineInstagramCollaborationInviteAsync("p1", "1790");
+
+        Assert.Equal("1789", list.CollaborationInvites[0].MediaId);
+        Assert.Equal("partner_brand", list.CollaborationInvites[0].MediaOwnerUsername);
+        Assert.Null(list.NextCursor);
+        Assert.True(accepted.Accepted);
+        Assert.True(declined.Declined);
+        Assert.Equal("1790", declined.MediaId);
+
+        var reqs = handler.Requests;
+        Assert.Equal("/api/profiles/p1/instagram/collaboration_invites?after=cur_1", reqs[0].Url);
+        Assert.Equal(HttpMethod.Post, reqs[1].Method);
+        Assert.Equal("/api/profiles/p1/instagram/accept_collaboration_invite", reqs[1].Url);
+        Assert.Equal("""{"media_id":"1789"}""", reqs[1].Body);
+        Assert.Equal("/api/profiles/p1/instagram/decline_collaboration_invite", reqs[2].Url);
+        Assert.Equal("""{"media_id":"1790"}""", reqs[2].Body);
+    }
+
+    [Fact]
+    public async Task PinterestBoards_CreateAndDelete()
+    {
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse("""{"id": "1022", "name": "Summer Recipes", "avatar_url": null, "metadata": {}}""");
+        handler.EnqueueResponse("""{"deleted": true, "board_id": "1022"}""");
+
+        var board = await client.Profiles.CreatePinterestBoardAsync("p1", "Summer Recipes", description: "Light dinners", privacy: PinterestBoardPrivacy.Protected);
+        var deleted = await client.Profiles.DeletePinterestBoardAsync("p1", board.Id);
+
+        Assert.Equal("1022", board.Id);
+        Assert.True(deleted.Deleted);
+        Assert.Equal("1022", deleted.BoardId);
+
+        var reqs = handler.Requests;
+        Assert.Equal(HttpMethod.Post, reqs[0].Method);
+        Assert.Equal("/api/profiles/p1/pinterest/create_board", reqs[0].Url);
+        Assert.Equal("""{"name":"Summer Recipes","description":"Light dinners","privacy":"PROTECTED"}""", reqs[0].Body);
+        Assert.Equal(HttpMethod.Delete, reqs[1].Method);
+        Assert.Equal("/api/profiles/p1/pinterest/delete_board?board_id=1022", reqs[1].Url);
+    }
+
+    [Fact]
+    public async Task YouTubePlaylists_ListCreateUpdateDelete()
+    {
+        const string playlist = """
+        {
+            "id": "PL1",
+            "title": "Tutorials",
+            "description": "",
+            "privacy_status": "public",
+            "item_count": 3,
+            "thumbnail_url": null,
+            "published_at": "2026-03-14T09:21:00.000Z"
+        }
+        """;
+        var (client, handler) = TestHelpers.CreateMockClient();
+        handler.EnqueueResponse($$"""{"data": [{{playlist}}], "next_page_token": null}""");
+        handler.EnqueueResponse(playlist);
+        handler.EnqueueResponse(playlist);
+        handler.EnqueueResponse("""{"deleted": true, "playlist_id": "PL1"}""");
+
+        var list = await client.Profiles.ListYouTubePlaylistsAsync("p1", pageToken: "tok");
+        var created = await client.Profiles.CreateYouTubePlaylistAsync("p1", "Tutorials", privacyStatus: YouTubePrivacy.Unlisted);
+        await client.Profiles.UpdateYouTubePlaylistAsync("p1", "PL1", description: "");
+        var deleted = await client.Profiles.DeleteYouTubePlaylistAsync("p1", "PL1");
+
+        Assert.Equal("PL1", list.Data[0].Id);
+        Assert.Equal(YouTubePrivacy.Public, list.Data[0].PrivacyStatus);
+        Assert.Equal(3, list.Data[0].ItemCount);
+        Assert.Null(list.NextPageToken);
+        Assert.Equal("Tutorials", created.Title);
+        Assert.True(deleted.Deleted);
+
+        var reqs = handler.Requests;
+        Assert.Equal("/api/profiles/p1/youtube/playlists?page_token=tok", reqs[0].Url);
+        Assert.Equal(HttpMethod.Post, reqs[1].Method);
+        Assert.Equal("/api/profiles/p1/youtube/create_playlist", reqs[1].Url);
+        Assert.Equal("""{"title":"Tutorials","privacy_status":"unlisted"}""", reqs[1].Body);
+        Assert.Equal(HttpMethod.Patch, reqs[2].Method);
+        Assert.Equal("/api/profiles/p1/youtube/update_playlist", reqs[2].Url);
+        Assert.Equal("""{"playlist_id":"PL1","description":""}""", reqs[2].Body);
+        Assert.Equal(HttpMethod.Delete, reqs[3].Method);
+        Assert.Equal("/api/profiles/p1/youtube/delete_playlist?playlist_id=PL1", reqs[3].Url);
+    }
 }
